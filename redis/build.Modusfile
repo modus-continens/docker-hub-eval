@@ -52,7 +52,7 @@ redis(version, variant) :-
       protected_mode_sed(version),
       patch_and_build(make_target, build_tls),
       run("set -eux; \
-            savedAptMark=\"$(cat /_saved_apt_mark)\"; \
+            savedAptMark=\"$(cat /_saved_apt_mark)\"; rm /_saved_apt_mark; \
             apt-mark auto '.*' > /dev/null; \
             [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null; \
             find /usr/local -type f -executable -exec ldd '{}' ';' \

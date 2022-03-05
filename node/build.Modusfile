@@ -28,7 +28,9 @@ node(version, variant, arch, yarn_version) :-
   ),
   # smoke tests
   run("node --version \
-    && npm --version").
+    && npm --version"),
+
+  install_yarn(variant, yarn_version).
 
 base_image(v) :-
   debian_full_variant(v), from(f"buildpack-deps:${v}").
@@ -137,3 +139,39 @@ build_from_source(version, arch) :-
 alpine_cleanup(version, arch) :-
   run(f"rm -f \"node-v${version}-linux-${arch}-musl.tar.xz\" \
     && apk del .build-deps").
+
+install_yarn(variant, yarn_version) :- debian_slim_variant(variant),
+  run("apt-mark showmanual > /_saved_apt_mark \
+    && apt-get update && apt-get install -y ca-certificates curl wget gnupg dirmngr --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*"),
+  install_yarn_core(yarn_version),
+  run("savedAptMark=\"$(cat /_saved_apt_mark)\" && rm /_saved_apt_mark \
+      && mark auto '.*' > /dev/null \
+      && { [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null; } \
+      && find /usr/local -type f -executable -exec ldd '{}' ';' \
+        | awk '/=>/ { print $(NF-1) }' \
+        | sort -u \
+        | xargs -r dpkg-query --search \
+        | cut -d: -f1 \
+        | sort -u \
+        | xargs -r apt-mark manual \
+      && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false").
+
+install_yarn(variant, yarn_version) :- debian_full_variant(variant),
+  install_yarn_core(yarn_version).
+
+install_yarn(variant, yarn_version) :- !debian_variant(variant),
+  run("apk add --no-cache --virtual .build-deps-yarn curl gnupg tar"),
+  install_yarn_core(yarn_version),
+  run("apk del .build-deps-yarn").
+
+install_yarn_core(yarn_version) :-
+  add_gpg("yarn"),
+  run(f"curl -fsSLO --compressed \"https://yarnpkg.com/downloads/${yarn_version}/yarn-v${yarn_version}.tar.gz\" \
+      && curl -fsSLO --compressed \"https://yarnpkg.com/downloads/${yarn_version}/yarn-v${yarn_version}.tar.gz.asc\" \
+      && gpg --batch --verify yarn-v${yarn_version}.tar.gz.asc yarn-v${yarn_version}.tar.gz \
+      && mkdir -p /opt \
+      && tar -xzf yarn-v${yarn_version}.tar.gz -C /opt/ \
+      && ln -s /opt/yarn-v${yarn_version}/bin/yarn /usr/local/bin/yarn \
+      && ln -s /opt/yarn-v${yarn_version}/bin/yarnpkg /usr/local/bin/yarnpkg \
+      && rm yarn-v${yarn_version}.tar.gz.asc yarn-v${yarn_version}.tar.gz").
