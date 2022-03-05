@@ -49,10 +49,10 @@ def system(cmd, cwd=None, capture=True):
                 dur = time() - start_time
                 stdout_read = proc.stdout.read()
                 if stdout_read:
-                    stdout.append(stdout_read.decode())
+                    stdout.append(stdout_read.decode("utf-8", errors="replace"))
                 stderr_read = proc.stderr.read()
                 if stderr_read:
-                    stderr.append(stderr_read.decode())
+                    stderr.append(stderr_read.decode("utf-8", errors="replace"))
                 if isatty(sys.stderr.fileno()):
                     sys.stderr.write("\x1b[2K\r\x1b[34m=> ")
                     sys.stderr.write(cmd_nonewline)

@@ -10,17 +10,23 @@ debian_slim_variant(v) :-
 node(version, variant, arch, yarn_version) :-
   node_version(version, variant, arch, yarn_version),
   base_image(variant),
-  setup_deps(variant, arch),
+  setup_deps(variant),
+  arch_str(arch, arch_),
   (
     debian_variant(variant),
-    extract_binary(variant, version, arch)
+    extract_binary(variant, version, arch_)
     ;
     !debian_variant(variant), alpine_binary(version, arch, checksum),
-    extract_binary_alpine(version, arch, checksum)
+    extract_binary_alpine(version, arch_, checksum),
+    alpine_cleanup(version, arch_)
     ;
     !debian_variant(variant), !alpine_binary(version, arch, _),
-    build_from_source(version, arch)
-  ).
+    build_from_source(version, arch_),
+    alpine_cleanup(version, arch_)
+  ),
+  # smoke tests
+  run("node --version \
+    && npm --version").
 
 base_image(v) :-
   debian_variant(v), !debian_slim_variant(v), from(f"buildpack-deps:${v}").
@@ -36,7 +42,7 @@ arch_str("arm64", "arm64").
 arch_str("armhf", "armv7l").
 arch_str("i386", "x86").
 
-setup_deps(v, arch) :-
+setup_deps(v) :-
   debian_variant(v),
   run("groupadd --gid 1000 node \
       && useradd --uid 1000 --gid node --shell /bin/bash --create-home node"),
@@ -48,7 +54,7 @@ setup_deps(v, arch) :-
         && rm -rf /var/lib/apt/lists/*")
   ).
 
-setup_deps(v, arch) :-
+setup_deps(v) :-
   !debian_variant(v),
   run("addgroup -g 1000 node \
       && adduser -u 1000 -G node -s /bin/sh -D node \
@@ -61,9 +67,9 @@ setup_deps(v, arch) :-
 add_gpg(key_type) :-
   # gpg keys listed at https://github.com/nodejs/node#release-keys
   gpg_key(key_type, list),
-  run(f"for key in $(cat<<EOF\n${list}EOF) do \
-        gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$key\" || \
-        gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\" ; \
+  run(f"for key in \$(cat<<EOF\n${list}EOF\n); do \
+        gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"\$key\" || \
+        gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"\$key\" ; \
       done").
 
 extract_binary(variant, version, arch) :-
@@ -123,9 +129,9 @@ build_from_source(version, arch) :-
     && make install \
     && apk del .build-deps-full \
     && cd .. \
-    && rm -Rf \"node-v${version}\" \
-    && rm \"node-v${version}.tar.xz\" SHASUMS256.txt.asc SHASUMS256.txt; \
-  fi \
-  && rm -f \"node-v${version}-linux-${arch}-musl.tar.xz\" \
-  && apk del .build-deps
-  ").
+    rm -Rf \"node-v${version}\" \
+    && rm -f \"node-v${version}.tar.xz\" SHASUMS256.txt.asc SHASUMS256.txt").
+
+alpine_cleanup(version, arch) :-
+  run(f"rm -f \"node-v${version}-linux-${arch}-musl.tar.xz\" \
+    && apk del .build-deps").

@@ -495,7 +495,7 @@ function update_node_version() {
 
 # Add GPG keys
 for key_type in "node" "yarn"; do
-  echo "gpg_key(\"$key_type\",\"\\"
+  echo -n "gpg_key(\"$key_type\",\""
   cat keys/${key_type}.keys
   echo "\")."
 done
