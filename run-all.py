@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import os
+import re
 from statistics import mean
 import subprocess
 from os import isatty, path
 from time import time, sleep
 from glob import glob
 import sys
+import json
 
 root = path.abspath(path.dirname(__file__))
 
@@ -24,9 +26,10 @@ chdir(".")
 
 
 def system(cmd, cwd=None, capture=True):
+    cmd_nonewline = re.sub("\n.*$", " ...", cmd, flags=re.MULTILINE | re.DOTALL)
     if isatty(sys.stderr.fileno()):
         sys.stderr.write("\x1b[2K\r\x1b[34m=> ")
-        sys.stderr.write(cmd)
+        sys.stderr.write(cmd_nonewline)
         sys.stderr.write("\x1b[0m")
     else:
         sys.stderr.write(cmd)
@@ -34,17 +37,27 @@ def system(cmd, cwd=None, capture=True):
     start_time = time()
     if capture:
         with subprocess.Popen(cmd, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            stdout = []
+            stderr = []
+            os.set_blocking(proc.stdout.fileno(), False)
+            os.set_blocking(proc.stderr.fileno(), False)
             while True:
                 ret = proc.poll()
                 dur = time() - start_time
+                stdout_read = proc.stdout.read()
+                if stdout_read:
+                    stdout.append(stdout_read.decode())
+                stderr_read = proc.stderr.read()
+                if stderr_read:
+                    stderr.append(stderr_read.decode())
                 if isatty(sys.stderr.fileno()):
                     sys.stderr.write("\x1b[2K\r\x1b[34m=> ")
-                    sys.stderr.write(cmd)
+                    sys.stderr.write(cmd_nonewline)
                     sys.stderr.write(f" [{round(dur, 1)}s] \x1b[0m")
                     sys.stderr.flush()
                 if ret is not None:
-                    stdout = proc.stdout.read().decode("utf-8")
-                    stderr = proc.stderr.read().decode("utf-8")
+                    stdout = "".join(stdout)
+                    stderr = "".join(stderr)
                     break
                 else:
                     sleep(0.03)
@@ -77,12 +90,23 @@ def system(cmd, cwd=None, capture=True):
     return dur
 
 
-apps = ["ubuntu"]
+apps = ["ubuntu", "redis"]
+if len(sys.argv) > 1:
+    only_run = sys.argv[1:]
+    for app in only_run:
+        if app not in apps:
+            sys.stderr.write(f"{app} is not a valid app\n")
+            sys.stderr.flush()
+            exit(1)
+    apps = only_run
+
 upstream_git = {
     "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
+    "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
 }
 app_query = {
     "ubuntu": "ubuntu(version)",
+    "redis": "redis(version, variant)"
 }
 
 
@@ -121,15 +145,8 @@ for app in apps:
         chdir(app)
 
     if path.isfile("generate-versions.sh"):
-        app_modus_prepare_time[app] += system("bash ./generate-versions.sh")
-
-    if path.isfile("versions.Modusfile"):
-        with open("generated.Modusfile", "wt") as mf:
-            with open("build.Modusfile") as bf:
-                mf.write(bf.read())
-            mf.write("\n")
-            with open("versions.Modusfile", "r") as vf:
-                mf.write(vf.read())
+        app_modus_prepare_time[app] += system("bash ./generate-versions.sh > generated.Modusfile")
+        system("cat build.Modusfile >> generated.Modusfile")
         app_target[app] = "generated.Modusfile"
     else:
         app_target[app] = "Modusfile"
@@ -154,24 +171,37 @@ for app in apps:
         print(f"  Dockerfiles:")
         for dir, dfile in app_docker_targets[app]:
             print(f"    {dir}/{dfile}")
-        app_docker_times[app] = [0] * len(app_docker_targets[app])
+        app_docker_times[app] = 0
 
 for app, target in app_target.items():
     chdir(app)
     cleanup_images()
+    json_out = path.join(root, "modus-build.json")
+    if path.isfile(json_out):
+        os.remove(json_out)
     app_modus_time[app] = system(
-        f"modus build . -f '{target}' '{app_query[app]}' --no-cache", capture=False)
+        f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
+    with open(json_out, "rt") as f:
+        modus_outputs = json.load(f)
+    os.remove(json_out)
+    if len(modus_outputs) != len(app_docker_targets[app]):
+        if isatty(sys.stderr.fileno()):
+            sys.stderr.write("\x1b[31;1m")
+        sys.stderr.write(f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
+        sys.stderr.flush()
     cleanup_images()
+    parallel_cmd = "parallel <<EOF\n"
     for i, (context, fname) in enumerate(app_docker_targets[app]):
-        chdir(path.join(app, context))
-        build_cmd = f"docker build . -f {fname} -t {app}-docker-{i+1} --no-cache"
+        ctxdir = path.join(root, app, context)
+        build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} -t {app}-docker-{i+1} --no-cache"
         use_buildkit = app not in app_docker_nobuildkit
         if use_buildkit:
             build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
         else:
             build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
-        app_docker_times[app][i] = system(
-            build_cmd, capture=not use_buildkit)
+        parallel_cmd += build_cmd + "\n"
+    parallel_cmd += "EOF"
+    app_docker_times[app] = system(parallel_cmd)
 
 for i, app in enumerate(apps):
     print(f"Performance report for {app}:")
@@ -179,10 +209,9 @@ for i, app in enumerate(apps):
     modus_prepare_time = app_modus_prepare_time[app]
     print(
         f"  Modus build time: {round(modus_prepare_time, 1)}s version parsing + {round(modus_time, 1)}s modus build = {round(modus_prepare_time + modus_time, 1)}s")
-    docker_times = app_docker_times[app]
-    docker_times_str = " + ".join(f"{round(t, 1)}s" for t in docker_times)
+    docker_time = app_docker_times[app]
     docker_prepare_time = app_docker_prepare_time[app]
     print(
-        f"  Docker build times: {round(docker_prepare_time, 1)}s in update.sh +")
-    print(f"    {docker_times_str} (avg {round(mean(docker_times), 1)}s, max {round(max(docker_times), 1)}s) in docker build (for each Dockerfile)")
-    print(f"    = {round(docker_prepare_time + sum(docker_times), 1)}s ({round(docker_prepare_time + max(docker_times), 1)}s if assuming docker build perfectly parallelizable)")
+        f"  Docker build times: {round(docker_prepare_time, 1)}s in update.sh")
+    print(f"    + {round(docker_time, 1)}s in docker build (parallel)")
+    print(f"    = {round(docker_prepare_time + docker_time, 1)}s")
