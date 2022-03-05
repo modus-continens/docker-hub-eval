@@ -260,6 +260,6 @@ def print_codesize(app):
 
 for app in apps:
     chdir(app)
-    # print_performance(app)
+    print_performance(app)
     print("")
     print_codesize(app)
