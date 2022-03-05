@@ -11,26 +11,29 @@ debian_variant(v) :- debian_slim_variant(v); debian_full_variant(v).
 
 node(version, variant, arch, yarn_version) :-
   node_version(version, variant, arch, yarn_version),
-  base_image(variant),
-  setup_deps(variant),
-  arch_str(arch, arch_),
   (
-    debian_variant(variant),
-    extract_binary(variant, version, arch_)
-    ;
-    !debian_variant(variant), alpine_binary(version, arch, checksum),
-    extract_binary_alpine(version, arch_, checksum),
-    alpine_cleanup(version, arch_)
-    ;
-    !debian_variant(variant), !alpine_binary(version, arch, _),
-    build_from_source(version, arch_),
-    alpine_cleanup(version, arch_)
-  ),
-  # smoke tests
-  run("node --version \
-    && npm --version"),
+    base_image(variant),
+    setup_deps(variant),
+    arch_str(arch, arch_),
+    (
+      debian_variant(variant),
+      extract_binary(variant, version, arch_)
+      ;
+      !debian_variant(variant), alpine_binary(version, arch, checksum),
+      extract_binary_alpine(version, arch_, checksum),
+      alpine_cleanup(version, arch_)
+      ;
+      !debian_variant(variant), !alpine_binary(version, arch, _),
+      build_from_source(version, arch_),
+      alpine_cleanup(version, arch_)
+    ),
+    # smoke tests
+    run("node --version \
+      && npm --version"),
 
-  install_yarn(variant, yarn_version).
+    install_yarn(variant, yarn_version),
+    copy("docker-entrypoint.sh" "/usr/local/bin/")
+  )::set_entrypoint("docker-entrypoint.sh").
 
 base_image(v) :-
   debian_full_variant(v), from(f"buildpack-deps:${v}").
@@ -163,7 +166,9 @@ install_yarn(variant, yarn_version) :- debian_full_variant(variant),
 install_yarn(variant, yarn_version) :- !debian_variant(variant),
   run("apk add --no-cache --virtual .build-deps-yarn curl gnupg tar"),
   install_yarn_core(yarn_version),
-  run("apk del .build-deps-yarn").
+  run("apk del .build-deps-yarn"),
+  # smoke test
+  run("yarn --version").
 
 install_yarn_core(yarn_version) :-
   add_gpg("yarn"),
