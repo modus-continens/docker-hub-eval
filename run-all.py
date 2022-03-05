@@ -99,7 +99,7 @@ def code_word_count(fname):
         return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
 
 
-apps = ["ubuntu", "redis"]
+apps = ["ubuntu", "redis", "node"]
 if len(sys.argv) > 1:
     only_run = sys.argv[1:]
     for app in only_run:
@@ -109,13 +109,19 @@ if len(sys.argv) > 1:
             exit(1)
     apps = only_run
 
+# TODO: convert into submodules
 upstream_git = {
     "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
     "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
+    "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
+}
+codesize_theirs_extra = {
+    "node": "functions.sh"
 }
 app_query = {
     "ubuntu": "ubuntu(version)",
-    "redis": "redis(version, variant)"
+    "redis": "redis(version, variant)",
+    "node": "node(version, variant, arch, yarn_version)"
 }
 
 
@@ -249,7 +255,16 @@ def print_codesize(app):
     print(f"\x1b[1mTheirs:\x1b[0m")
     theirs_words = 0
     theirs_lines = 0
-    for t in flatten([glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"]]):
+    if app in codesize_theirs_extra:
+        extra = [path.join("upstream.git", p)
+                 for p in codesize_theirs_extra[app]]
+    else:
+        extra = []
+    for t in flatten([
+        glob("upstream.git/**/*.template", recursive=True),
+        ["upstream.git/update.sh"],
+        extra
+    ]):
         if path.isfile(t):
             words, lines = code_word_count(t)
             theirs_words += words
