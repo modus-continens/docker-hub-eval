@@ -1,11 +1,13 @@
-debian_variant(v) :-
+debian_full_variant(v) :-
   v = "stretch";
   v = "bullseye";
   v = "buster".
 
 debian_slim_variant(v) :-
   string_concat(deb_v, "-slim", v),
-  debian_variant(deb_v).
+  debian_full_variant(deb_v).
+
+debian_variant(v) :- debian_slim_variant(v); debian_full_variant(v).
 
 node(version, variant, arch, yarn_version) :-
   node_version(version, variant, arch, yarn_version),
@@ -29,9 +31,9 @@ node(version, variant, arch, yarn_version) :-
     && npm --version").
 
 base_image(v) :-
-  debian_variant(v), !debian_slim_variant(v), from(f"buildpack-deps:${v}").
+  debian_full_variant(v), from(f"buildpack-deps:${v}").
 base_image(v) :-
-  debian_variant(v), debian_slim_variant(v), from(f"debian:${v}-slim").
+  debian_slim_variant(v), from(f"debian:${v}").
 base_image(v) :-
   string_concat("alpine", alpine_version, v), from(f"alpine:${alpine_version}").
 
@@ -47,8 +49,8 @@ setup_deps(v) :-
   run("groupadd --gid 1000 node \
       && useradd --uid 1000 --gid node --shell /bin/bash --create-home node"),
   (
-    debian_slim_variant(v), run("true");
-    !debian_slim_variant(v),
+    debian_full_variant(v), run("true");
+    debian_slim_variant(v),
     # libatomic1 for arm
     run("apt-get update && apt-get install -y ca-certificates curl wget gnupg dirmngr xz-utils libatomic1 --no-install-recommends \
         && rm -rf /var/lib/apt/lists/*")

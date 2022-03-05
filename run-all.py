@@ -116,7 +116,7 @@ upstream_git = {
     "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
 }
 codesize_theirs_extra = {
-    "node": "functions.sh"
+    "node": ["functions.sh"]
 }
 app_query = {
     "ubuntu": "ubuntu(version)",
