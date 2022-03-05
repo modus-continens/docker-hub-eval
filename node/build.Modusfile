@@ -32,7 +32,7 @@ node(version, variant, arch, yarn_version) :-
       && npm --version"),
 
     install_yarn(variant, yarn_version),
-    copy("docker-entrypoint.sh" "/usr/local/bin/")
+    copy("docker-entrypoint.sh", "/usr/local/bin/")
   )::set_entrypoint("docker-entrypoint.sh").
 
 base_image(v) :-
