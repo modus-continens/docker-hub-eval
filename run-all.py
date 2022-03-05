@@ -9,6 +9,8 @@ from glob import glob
 import sys
 import json
 
+from more_itertools import flatten
+
 root = path.abspath(path.dirname(__file__))
 
 
@@ -26,7 +28,8 @@ chdir(".")
 
 
 def system(cmd, cwd=None, capture=True):
-    cmd_nonewline = re.sub("\n.*$", " ...", cmd, flags=re.MULTILINE | re.DOTALL)
+    cmd_nonewline = re.sub("\n.*$", " ...", cmd,
+                           flags=re.MULTILINE | re.DOTALL)
     if isatty(sys.stderr.fileno()):
         sys.stderr.write("\x1b[2K\r\x1b[34m=> ")
         sys.stderr.write(cmd_nonewline)
@@ -90,6 +93,12 @@ def system(cmd, cwd=None, capture=True):
     return dur
 
 
+def code_word_count(fname):
+    with open(fname, "rt") as f:
+        fcontent = f.read()
+        return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
+
+
 apps = ["ubuntu", "redis"]
 if len(sys.argv) > 1:
     only_run = sys.argv[1:]
@@ -119,7 +128,7 @@ def cleanup_images():
     # takes too long
 
 
-app_target = {}
+app_modus_target = {}
 app_docker_targets = {}
 app_modus_prepare_time = {}
 app_docker_prepare_time = {}
@@ -145,11 +154,12 @@ for app in apps:
         chdir(app)
 
     if path.isfile("generate-versions.sh"):
-        app_modus_prepare_time[app] += system("bash ./generate-versions.sh > generated.Modusfile")
+        app_modus_prepare_time[app] += system(
+            "bash ./generate-versions.sh > generated.Modusfile")
         system("cat build.Modusfile >> generated.Modusfile")
-        app_target[app] = "generated.Modusfile"
+        app_modus_target[app] = "generated.Modusfile"
     else:
-        app_target[app] = "Modusfile"
+        app_modus_target[app] = "Modusfile"
 
     if app in upstream_git:
         chdir(repo_dir)
@@ -166,14 +176,14 @@ for app in apps:
         chdir(app)
 
     print(f"{app}:")
-    print(f"  Modusfile: {app_target[app]}")
+    print(f"  Modusfile: {app_modus_target[app]}")
     if app in app_docker_targets:
         print(f"  Dockerfiles:")
         for dir, dfile in app_docker_targets[app]:
             print(f"    {dir}/{dfile}")
         app_docker_times[app] = 0
 
-for app, target in app_target.items():
+for app, target in app_modus_target.items():
     chdir(app)
     cleanup_images()
     json_out = path.join(root, "modus-build.json")
@@ -187,7 +197,8 @@ for app, target in app_target.items():
     if len(modus_outputs) != len(app_docker_targets[app]):
         if isatty(sys.stderr.fileno()):
             sys.stderr.write("\x1b[31;1m")
-        sys.stderr.write(f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
+        sys.stderr.write(
+            f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
         sys.stderr.flush()
     cleanup_images()
     parallel_cmd = "parallel <<EOF\n"
@@ -203,7 +214,8 @@ for app, target in app_target.items():
     parallel_cmd += "EOF"
     app_docker_times[app] = system(parallel_cmd)
 
-for i, app in enumerate(apps):
+
+def print_performance(app):
     print(f"Performance report for {app}:")
     modus_time = app_modus_time[app]
     modus_prepare_time = app_modus_prepare_time[app]
@@ -215,3 +227,39 @@ for i, app in enumerate(apps):
         f"  Docker build times: {round(docker_prepare_time, 1)}s in update.sh")
     print(f"    + {round(docker_time, 1)}s in docker build (parallel)")
     print(f"    = {round(docker_prepare_time + docker_time, 1)}s")
+
+
+def print_codesize(app):
+    print(f"Code size report for {app}:")
+    print("\x1b[1mOurs:\x1b[0m")
+    ours_total_words = 0
+    ours_total_lines = 0
+    m_words, m_lines = code_word_count("build.Modusfile")
+    ours_total_words += m_words
+    ours_total_lines += m_lines
+    if path.isfile("generate-versions.sh"):
+        u_words, u_lines = code_word_count("generate-versions.sh")
+        ours_total_words += u_words
+        ours_total_lines += u_lines
+        print(f"  generate-versions.sh: {u_words} words, {u_lines} lines")
+    print(f"  build.Modusfile: {m_words} words, {m_lines} lines")
+    if u_words != 0:
+        print(
+            f"  Ours total: {ours_total_words} words, {ours_total_lines} lines")
+    print(f"\x1b[1mTheirs:\x1b[0m")
+    theirs_words = 0
+    theirs_lines = 0
+    for t in flatten([glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"]]):
+        if path.isfile(t):
+            words, lines = code_word_count(t)
+            theirs_words += words
+            theirs_lines += lines
+            print(f"  {t}: {words} words, {lines} lines")
+    print(f"  Theirs total: {theirs_words} words, {theirs_lines} lines")
+
+
+for app in apps:
+    chdir(app)
+    # print_performance(app)
+    print("")
+    print_codesize(app)
