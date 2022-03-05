@@ -146,7 +146,7 @@ install_yarn(variant, yarn_version) :- debian_slim_variant(variant),
     && rm -rf /var/lib/apt/lists/*"),
   install_yarn_core(yarn_version),
   run("savedAptMark=\"$(cat /_saved_apt_mark)\" && rm /_saved_apt_mark \
-      && mark auto '.*' > /dev/null \
+      && apt-mark auto '.*' > /dev/null \
       && { [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null; } \
       && find /usr/local -type f -executable -exec ldd '{}' ';' \
         | awk '/=>/ { print $(NF-1) }' \
