@@ -1,0 +1,54 @@
+traefik(version, "alpine", arch) :- impl(version, "alpine3.14", arch).
+impl(version, "alpine3.14", arch) :-
+  traefik_version(version),
+  (
+    from("alpine:3.14"),
+    run("apk --no-cache add ca-certificates tzdata"),
+    arch_name(version, arch, arch_),
+    (
+      is_v1(version),
+        run(f"wget --quiet -O /usr/local/bin/traefik 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_linux-${arch_}'");
+      is_v2(version),
+        run(f"set -ex; \
+            wget --quiet -O /tmp/traefik.tar.gz 'https://github.com/traefik/traefik/releases/download/${version}/traefik_${version}_linux_${arch_}.tar.gz'; \
+            tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik; \
+            rm -f /tmp/traefik.tar.gz;")
+    ),
+    run("chmod +x /usr/local/bin/traefik"),
+    copy("entrypoint.sh", "/")
+  )::set_entrypoint("/entrypoint.sh"),
+  (
+    is_v1(version), vendor_label = "traefik";
+    is_v2(version), vendor_label = "Traefik Labs"
+  ).
+  # TODO set labels:
+  # org.opencontainers.image.vendor=vendor_label \
+	# org.opencontainers.image.url="https://traefik.io" \
+	# org.opencontainers.image.title="Traefik" \
+	# org.opencontainers.image.description="A modern reverse-proxy" \
+	# org.opencontainers.image.version="$VERSION" \
+	# org.opencontainers.image.documentation="https://docs.traefik.io"
+
+traefik(version, "scratch", arch) :-
+  (
+    from("scratch"),
+    traefik(version, "alpine", arch)::copy("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/certs/"),
+    traefik(version, "alpine", arch)::copy("/usr/share/zoneinfo", "/usr/share/"),
+    traefik(version, "alpine", arch)::copy("/usr/local/bin/traefik", "/")
+  )::set_entrypoint("/traefik").
+   # LABEL org.opencontainers.image.vendor="Traefik Labs" \
+   # 	org.opencontainers.image.url="https://traefik.io" \
+   # 	org.opencontainers.image.title="Traefik" \
+   # 	org.opencontainers.image.description="A modern reverse-proxy" \
+   # 	org.opencontainers.image.version="$VERSION" \
+   # 	org.opencontainers.image.documentation="https://docs.traefik.io"
+
+
+traefik_version("1.7.34").
+traefik_version("2.6.1").
+is_v1(v) :- string_concat("1.", _, v).
+is_v2(v) :- string_concat("2.", _, v).
+arch_name(v, "amd64", "amd64").
+arch_name(v, "arm", "arm") :- is_v1(v).
+arch_name(v, "arm", "armv6") :- is_v2(v).
+arch_name(v, "arm64", "arm64").

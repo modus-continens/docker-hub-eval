@@ -11,6 +11,8 @@ import json
 
 root = path.abspath(path.dirname(__file__))
 
+skip_actual_build = False
+
 
 def chdir(dir):
     dir = path.normpath(path.join(root, dir))
@@ -99,7 +101,15 @@ def code_word_count(fname):
         return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
 
 
-apps = ["ubuntu", "redis", "node", "mysql"]
+# TODO: convert into submodules
+upstream_git = {
+    "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
+    "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
+    "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
+    "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
+    "traefik": ("https://github.com/traefik/traefik-library-image.git", "19b29d4858c12d74647d59214e0a9417646343ca"),
+}
+apps = list(upstream_git.keys())
 if len(sys.argv) > 1:
     only_run = sys.argv[1:]
     for app in only_run:
@@ -109,13 +119,6 @@ if len(sys.argv) > 1:
             exit(1)
     apps = only_run
 
-# TODO: convert into submodules
-upstream_git = {
-    "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
-    "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
-    "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
-    "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
-}
 codesize_ours_extra = {
     "mysql": ["upstream.git/versions.sh"]
 }
@@ -124,6 +127,12 @@ codesize_theirs_extra = {
     "mysql": [
         "versions.sh",
         "apply-templates.sh"
+    ],
+    "traefik": [
+        "updatev1.sh",
+        # not counting updatev2: it is exactly the same as v1, wonder why they made another file...
+        "alpine/tmpl*.Dockerfile",
+        "scratch/tmpl*.Dockerfile"
     ]
 }
 app_query = {
@@ -131,10 +140,13 @@ app_query = {
     "redis": "redis(version, variant)",
     "node": "node(version, variant, arch, yarn_version)",
     "mysql": "mysql(major_version, dist, variant, \"amd64\")",
+    "traefik": "traefik(version, variant, \"amd64\")"
 }
 
 
 def cleanup_images():
+    if skip_actual_build:
+        return
     system("docker container prune -f")
     system("docker image rm -f $(docker image ls -aq) || true")
     system("docker image prune -f")
@@ -186,9 +198,18 @@ for app in apps:
         chdir(repo_dir)
         with open("arch", "wt") as arch:
             arch.write("amd64")
-        app_docker_prepare_time[app] += system("./update.sh")
+        if path.isfile("../update-upstream.sh"):
+            app_docker_prepare_time[app] += system("../update-upstream.sh")
+        else:
+            app_docker_prepare_time[app] += system("./update.sh")
         if app == "mysql":
             dockerfiles = glob("*.*/Dockerfile.*", recursive=True)
+        elif app == "traefik":
+            dockerfiles = list(chain(
+                # need to be in this order
+                glob("alpine-*.Dockerfile", recursive=True),
+                glob("scratch-*.Dockerfile", recursive=True),
+            ))
         else:
             dockerfiles = glob("**/*Dockerfile", recursive=True)
         targets = []
@@ -213,11 +234,15 @@ for app, target in app_modus_target.items():
     json_out = path.join(root, "modus-build.json")
     if path.isfile(json_out):
         os.remove(json_out)
-    app_modus_time[app] = system(
-        f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
-    with open(json_out, "rt") as f:
-        modus_outputs = json.load(f)
-    os.remove(json_out)
+    if not skip_actual_build:
+        app_modus_time[app] = system(
+            f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
+        with open(json_out, "rt") as f:
+            modus_outputs = json.load(f)
+        os.remove(json_out)
+    else:
+        app_modus_time[app] = 0
+        modus_outputs = []
     if len(modus_outputs) != len(app_docker_targets[app]):
         if isatty(sys.stderr.fileno()):
             sys.stderr.write("\x1b[31;1m")
@@ -236,6 +261,8 @@ for app, target in app_modus_target.items():
             build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
         parallel_cmd += build_cmd + "\n"
     parallel_cmd += "EOF"
+    if skip_actual_build:
+        parallel_cmd = "true # skipped by flag"
     app_docker_times[app] = system(parallel_cmd)
 
 
@@ -258,7 +285,10 @@ def print_codesize(app):
     print("\x1b[1mOurs:\x1b[0m")
     ours_total_words = 0
     ours_total_lines = 0
-    m_words, m_lines = code_word_count("build.Modusfile")
+    mf_to_count = "build.Modusfile"
+    if app_modus_target[app] != "generated.Modusfile":
+        mf_to_count = "Modusfile"
+    m_words, m_lines = code_word_count(mf_to_count)
     ours_total_words += m_words
     ours_total_lines += m_lines
     our_extra = []
@@ -276,8 +306,9 @@ def print_codesize(app):
     theirs_words = 0
     theirs_lines = 0
     if app in codesize_theirs_extra:
-        extra = [path.join("upstream.git", p)
-                 for p in codesize_theirs_extra[app]]
+        extra = [pp
+                 for p in codesize_theirs_extra[app]
+                 for pp in glob(path.join("upstream.git", p), recursive=True)]
     else:
         extra = []
     for t in chain(glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"], extra):
