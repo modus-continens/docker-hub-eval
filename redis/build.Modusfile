@@ -161,8 +161,8 @@ protected_mode_sed(version) :-
 # (more exactly, this makes sure the default behavior of "save on SIGTERM" stays functional by default)
 
 extract_redis(sha_type) :-
-  run(f"wget -O redis.tar.gz \"\$REDIS_DOWNLOAD_URL\" && \
-        echo \"\$REDIS_DOWNLOAD_SHA *redis.tar.gz\" | ${sha_type}sum -c - && \
+  run(f"wget -O redis.tar.gz \"$REDIS_DOWNLOAD_URL\" && \
+        echo \"$REDIS_DOWNLOAD_SHA *redis.tar.gz\" | ${sha_type}sum -c - && \
         mkdir -p /usr/src/redis && \
         tar -xzf redis.tar.gz -C /usr/src/redis --strip-components=1 && \
         rm redis.tar.gz;").
@@ -183,7 +183,7 @@ patch_and_build(make_target, build_tls) :-
         grep -F 'cd jemalloc && ./configure ' /usr/src/redis/deps/Makefile; \
         sed -ri 's!cd jemalloc && ./configure !&'\"$extraJemallocConfigureFlags\"' !' /usr/src/redis/deps/Makefile; \
         grep -F \"cd jemalloc && ./configure $extraJemallocConfigureFlags \" /usr/src/redis/deps/Makefile;"),
-  run(f"make -C /usr/src/redis -j \"\$(nproc)\" ${make_target} && \
+  run(f"make -C /usr/src/redis -j \"$(nproc)\" ${make_target} && \
         make -C /usr/src/redis install")::in_env("BUILD_TLS", build_tls),
   # TODO https://github.com/redis/redis/pull/3494 (deduplicate "redis-server" copies)
   run("set -enx; \
