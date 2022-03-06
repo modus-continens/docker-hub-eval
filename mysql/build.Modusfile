@@ -45,8 +45,8 @@ mysql(major_version, dist, variant, arch) :-
     (
       # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
       # gpg: key 3A79BD29: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
-      run("set --eux;
-            mkdir $GNUPGHOME; \
+      run("set -eux;
+            mkdir $GNUPGHOME && chmod go-rwx $GNUPGHOME; \
             gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\""),
       (dist = "debian",
         run("mkdir -p /etc/apt/keyrings; \
@@ -59,7 +59,7 @@ mysql(major_version, dist, variant, arch) :-
     )::in_env("key", "859BE8D7C586F538430B19C2467B942D3A79BD29")
     ::in_env("GNUPGHOME", "/tmp/gpg-tmp-home"),
     (dist = "debian",
-      run("echo 'deb [ signed-by=/etc/apt/keyrings/mysql.gpg ] http://repo.mysql.com/apt/debian/ {{ .debian.suite }} mysql-{{ env.version }}' > /etc/apt/sources.list.d/mysql.list"),
+      run(f"echo 'deb [ signed-by=/etc/apt/keyrings/mysql.gpg ] http://repo.mysql.com/apt/debian/ ${variant} mysql-${major_version}' > /etc/apt/sources.list.d/mysql.list"),
       # the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
       # also, we set debconf keys to make APT a little quieter
       run("{ \
@@ -72,17 +72,29 @@ mysql(major_version, dist, variant, arch) :-
       apt_install_mysql_server(major_version, version),
       run("rm -rf /var/lib/apt/lists/* \
         && rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mysqld \
-        && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld \
+        && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld &&
       # ensure that /var/run/mysqld (used for socket and lock files) is writable regardless of the UID our mysqld instance ends up having at runtime
-        && chmod 1777 /var/run/mysqld /var/lib/mysql"),
+        chmod 1777 /var/run/mysqld /var/lib/mysql"),
       (major_version != "5.7", copy(f"upstream.git/${major_version}/config/", "/etc/mysql/");
         major_version = "5.7", run("true")),
       copy("docker-entrypoint.sh", "/usr/local/bin/"),
       # backwards compat
       run("ln -s usr/local/bin/docker-entrypoint.sh /entrypoint.sh");
     dist = "oracle",
+      run(f"set -eu; \
+            . /etc/os-release; \
+            { \
+              echo '[mysql${major_version}-server-minimal]'; \
+              echo 'name=MySQL ${major_version} Server Minimal'; \
+              echo 'enabled=1'; \
+              echo \"baseurl=https://repo.mysql.com/yum/mysql-${major_version}-community/docker/el/\${VERSION_ID%%[.-]*}/\\\$basearch/\"; \
+              echo 'gpgcheck=1'; \
+              echo 'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-mysql';
+          # https://github.com/docker-library/mysql/pull/680#issuecomment-825930524
+              echo 'module_hotfixes=true'; \
+            } | tee /etc/yum.repos.d/mysql-community-minimal.repo"),
       run(f"set -eux; \
-          ${dnf} install -y \"mysql-community-server-minimal-$MYSQL_VERSION\"; \
+          ${dnf} install -y \"mysql-community-server-minimal-\$MYSQL_VERSION\"; \
           ${dnf} clean all;
         # the 'socket' value in the Oracle packages is set to '/var/lib/mysql' which isn't a great place for the socket (we want it in '/var/run/mysqld' instead)
         # https://github.com/docker-library/mysql/pull/680#issuecomment-636121520
@@ -111,7 +123,7 @@ mysql(major_version, dist, variant, arch) :-
             echo 'module_hotfixes=true'; \
           } | tee /etc/yum.repos.d/mysql-community-tools.repo"),
       run(f"set -eux; \
-          ${dnf} install -y \"mysql-shell-$MYSQL_SHELL_VERSION\"; \
+          ${dnf} install -y \"mysql-shell-\$MYSQL_SHELL_VERSION\"; \
           ${dnf} clean all"),
       run("mysqlsh --version"),
       copy("docker-entrypoint.sh", "/usr/local/bin/"))
@@ -140,7 +152,8 @@ setup("oracle") :-
       mkdir /docker-entrypoint-initdb.d").
 
 # add gosu for easy step-down from root
-gosu("debian", arch, "1.14") :-
+gosu("debian", arch, gosu_version) :-
+  gosu_version = "1.14",
   run("set -eux; \
       savedAptMark=\"$(apt-mark showmanual)\"; \
       apt-get update; \
@@ -162,12 +175,12 @@ gosu("debian", arch, "1.14") :-
 gosu("oracle", arch, "1.14") :-
   (arch = "amd64", arch_ = "amd64"; arch = "arm64v8", arch_ = "arm64"),
   run(f"set -eux; \
-      curl -fL -o /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-${arch_}.asc\"; \
-      curl -fL -o /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-${arch_}\"; \
-      export GNUPGHOME=\"$(mktemp -d)\"; \
+      curl -fL -o /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/\$GOSU_VERSION/gosu-${arch_}.asc\"; \
+      curl -fL -o /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/\$GOSU_VERSION/gosu-${arch_}\"; \
+      export GNUPGHOME=\"\$(mktemp -d)\"; \
       gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
       gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
-      rm -rf \"$GNUPGHOME\" /usr/local/bin/gosu.asc"),
+      rm -rf \"\$GNUPGHOME\" /usr/local/bin/gosu.asc"),
   gosu_common.
 
 gosu_common :-
@@ -177,7 +190,7 @@ gosu_common :-
       gosu nobody true").
 
 apt_install_mysql_server("5.7", version) :-
-  run(f"apt-get install mysql-server=${version}"),
+  run(f"apt-get install -y mysql-server=${version}"),
   # comment out a few problematic configuration values
   run("find /etc/mysql/ -name '*.cnf' -print0 \
 		| xargs -0 grep -lZE '^(bind-address|log)' \
@@ -186,5 +199,5 @@ apt_install_mysql_server("5.7", version) :-
   run("echo -e '[mysqld]\\nskip-host-cache\\nskip-name-resolve' > /etc/mysql/conf.d/docker.cnf").
 apt_install_mysql_server(not_5_7, version) :-
   not_5_7 != "5.7",
-  run(f"apt-get install mysql-community-client=\"${version}\" \
+  run(f"apt-get install -y mysql-community-client=\"${version}\" \
 		mysql-community-server-core=\"${version}\"").
