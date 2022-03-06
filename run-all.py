@@ -94,8 +94,11 @@ def system(cmd, cwd=None, capture=True):
 
     return dur
 
-system("modus --version")
-system("echo true | parallel || { echo Please install the GNU parallel package; exit 1; }")
+
+system("modus --version", capture=False)
+system(
+    "echo true | parallel || { echo Please install the GNU parallel package; exit 1; }")
+
 
 def code_word_count(fname):
     with open(fname, "rt") as f:
@@ -242,7 +245,8 @@ for app, target in app_modus_target.items():
             modus_outputs = json.load(f)
         os.remove(json_out)
     else:
-        app_modus_time[app] = 0
+        app_modus_time[app] = system(
+            f"modus proof . -f '{target}' '{app_query[app]}'")
         modus_outputs = []
     if len(modus_outputs) != len(app_docker_targets[app]):
         if isatty(sys.stderr.fileno()):

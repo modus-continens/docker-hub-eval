@@ -16,7 +16,8 @@ impl(version, "alpine3.14", arch) :-
     ),
     run("chmod +x /usr/local/bin/traefik"),
     copy("entrypoint.sh", "/")
-  )::set_entrypoint("/entrypoint.sh"),
+  )::set_entrypoint("/entrypoint.sh")
+   ::merge,
   (
     is_v1(version), vendor_label = "traefik";
     is_v2(version), vendor_label = "Traefik Labs"
@@ -35,7 +36,8 @@ traefik(version, "scratch", arch) :-
     traefik(version, "alpine", arch)::copy("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/certs/"),
     traefik(version, "alpine", arch)::copy("/usr/share/zoneinfo", "/usr/share/"),
     traefik(version, "alpine", arch)::copy("/usr/local/bin/traefik", "/")
-  )::set_entrypoint("/traefik").
+  )::merge
+   ::set_entrypoint("/traefik").
    # LABEL org.opencontainers.image.vendor="Traefik Labs" \
    # 	org.opencontainers.image.url="https://traefik.io" \
    # 	org.opencontainers.image.title="Traefik" \

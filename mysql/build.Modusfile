@@ -57,24 +57,27 @@ mysql(major_version, dist, variant, arch) :-
       ),
       run("rm -rf \"$GNUPGHOME\"")
     )::in_env("key", "859BE8D7C586F538430B19C2467B942D3A79BD29")
-    ::in_env("GNUPGHOME", "/tmp/gpg-tmp-home"),
+     ::in_env("GNUPGHOME", "/tmp/gpg-tmp-home")
+     ::merge,
     (dist = "debian",
       run(f"echo 'deb [ signed-by=/etc/apt/keyrings/mysql.gpg ] http://repo.mysql.com/apt/debian/ ${variant} mysql-${major_version}' > /etc/apt/sources.list.d/mysql.list"),
       # the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
       # also, we set debconf keys to make APT a little quieter
-      run("{ \
-            echo mysql-community-server mysql-community-server/data-dir select ''; \
-            echo mysql-community-server mysql-community-server/root-pass password ''; \
-            echo mysql-community-server mysql-community-server/re-root-pass password ''; \
-            echo mysql-community-server mysql-community-server/remove-test-db select false; \
-          } | debconf-set-selections \
-          && apt-get update"),
-      apt_install_mysql_server(major_version, version),
-      run("rm -rf /var/lib/apt/lists/* \
-        && rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mysqld \
-        && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld &&
-      # ensure that /var/run/mysqld (used for socket and lock files) is writable regardless of the UID our mysqld instance ends up having at runtime
-        chmod 1777 /var/run/mysqld /var/lib/mysql"),
+      (
+        run("{ \
+              echo mysql-community-server mysql-community-server/data-dir select ''; \
+              echo mysql-community-server mysql-community-server/root-pass password ''; \
+              echo mysql-community-server mysql-community-server/re-root-pass password ''; \
+              echo mysql-community-server mysql-community-server/remove-test-db select false; \
+            } | debconf-set-selections \
+            && apt-get update"),
+        apt_install_mysql_server(major_version, version),
+        run("rm -rf /var/lib/apt/lists/* \
+          && rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mysqld \
+          && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld &&
+        # ensure that /var/run/mysqld (used for socket and lock files) is writable regardless of the UID our mysqld instance ends up having at runtime
+          chmod 1777 /var/run/mysqld /var/lib/mysql")
+      )::merge,
       (major_version != "5.7", copy(f"upstream.git/${major_version}/config/", "/etc/mysql/");
         major_version = "5.7", run("true")),
       copy("docker-entrypoint.sh", "/usr/local/bin/"),
@@ -124,8 +127,8 @@ mysql(major_version, dist, variant, arch) :-
           } | tee /etc/yum.repos.d/mysql-community-tools.repo"),
       run(f"set -eux; \
           ${dnf} install -y \"mysql-shell-\$MYSQL_SHELL_VERSION\"; \
-          ${dnf} clean all"),
-      run("mysqlsh --version"),
+          ${dnf} clean all;
+          mysqlsh --version"),
       copy("docker-entrypoint.sh", "/usr/local/bin/")
     ),
     run("chmod a+rx /usr/local/bin/docker-entrypoint.sh")
@@ -156,7 +159,8 @@ setup("oracle") :-
 # add gosu for easy step-down from root
 gosu("debian", arch, gosu_version) :-
   gosu_version = "1.14",
-  run("set -eux; \
+  (
+    run("set -eux; \
       savedAptMark=\"$(apt-mark showmanual)\"; \
       apt-get update; \
       apt-get install -y --no-install-recommends ca-certificates wget; \
@@ -172,18 +176,21 @@ gosu("debian", arch, gosu_version) :-
       apt-mark auto '.*' > /dev/null; \
       [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null; \
       apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false;"),
-  gosu_common.
+    gosu_common
+  )::merge.
 
 gosu("oracle", arch, "1.14") :-
   (arch = "amd64", arch_ = "amd64"; arch = "arm64v8", arch_ = "arm64"),
-  run(f"set -eux; \
+  (
+    run(f"set -eux; \
       curl -fL -o /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/\$GOSU_VERSION/gosu-${arch_}.asc\"; \
       curl -fL -o /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/\$GOSU_VERSION/gosu-${arch_}\"; \
       export GNUPGHOME=\"\$(mktemp -d)\"; \
       gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
       gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
       rm -rf \"\$GNUPGHOME\" /usr/local/bin/gosu.asc"),
-  gosu_common.
+    gosu_common
+  )::merge.
 
 gosu_common :-
   run("set -eux;

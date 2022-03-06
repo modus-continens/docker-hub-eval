@@ -12,28 +12,31 @@ debian_variant(v) :- debian_slim_variant(v); debian_full_variant(v).
 node(version, variant, arch, yarn_version) :-
   node_version(version, variant, arch, yarn_version),
   (
-    base_image(variant),
-    setup_deps(variant),
-    arch_str(arch, arch_),
     (
-      debian_variant(variant),
-      extract_binary(variant, version, arch_)
-      ;
-      !debian_variant(variant), alpine_binary(version, arch, checksum),
-      extract_binary_alpine(version, arch_, checksum),
-      alpine_cleanup(version, arch_)
-      ;
-      !debian_variant(variant), !alpine_binary(version, arch, _),
-      build_from_source(version, arch_),
-      alpine_cleanup(version, arch_)
-    ),
-    # smoke tests
-    run("node --version \
-      && npm --version"),
-
-    install_yarn(variant, yarn_version),
-    copy("docker-entrypoint.sh", "/usr/local/bin/"),
-    run("chmod a+rx /usr/local/bin/docker-entrypoint.sh")
+      base_image(variant),
+      setup_deps(variant),
+      arch_str(arch, arch_),
+      (
+        debian_variant(variant),
+        extract_binary(variant, version, arch_)
+        ;
+        !debian_variant(variant), alpine_binary(version, arch, checksum),
+        extract_binary_alpine(version, arch_, checksum),
+        alpine_cleanup(version, arch_)
+        ;
+        !debian_variant(variant), !alpine_binary(version, arch, _),
+        build_from_source(version, arch_),
+        alpine_cleanup(version, arch_)
+      ),
+      # smoke tests
+      run("node --version \
+        && npm --version")
+    )::merge,
+    (
+      install_yarn(variant, yarn_version),
+      copy("docker-entrypoint.sh", "/usr/local/bin/"),
+      run("chmod a+rx /usr/local/bin/docker-entrypoint.sh")
+    )::merge
   )::set_entrypoint("docker-entrypoint.sh").
 
 base_image(v) :-
