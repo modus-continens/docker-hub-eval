@@ -78,9 +78,9 @@ setup_deps(v) :-
 add_gpg(key_type) :-
   # gpg keys listed at https://github.com/nodejs/node#release-keys
   gpg_key(key_type, list),
-  run(f"for key in $(cat<<EOF\n${list}EOF\n); do \
+  run(f"for key in $(cat<<EOF\n${list}EOF\n); do
         gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$key\" || \
-        gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\" ; \
+        gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\" ;
       done").
 
 extract_binary(variant, version, arch) :-
@@ -108,8 +108,8 @@ extract_binary(variant, version, arch) :-
   run("ln -s /usr/local/bin/node /usr/local/bin/nodejs").
 
 extract_binary_alpine(version, arch, checksum) :-
-  run(f"set -eu; \
-    curl -fsSLO --compressed \"https://unofficial-builds.nodejs.org/download/release/v${version}/node-v${version}-linux-${arch}-musl.tar.xz\"; \
+  run(f"set -eu;
+    curl -fsSLO --compressed \"https://unofficial-builds.nodejs.org/download/release/v${version}/node-v${version}-linux-${arch}-musl.tar.xz\";
     echo \"${checksum}  node-v${version}-linux-${arch}-musl.tar.xz\" | sha256sum -c - \
       && tar -xJf \"node-v${version}-linux-${arch}-musl.tar.xz\" -C /usr/local --strip-components=1 --no-same-owner \
       && ln -s /usr/local/bin/node /usr/local/bin/nodejs;").

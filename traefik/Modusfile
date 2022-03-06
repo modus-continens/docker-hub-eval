@@ -9,9 +9,9 @@ impl(version, "alpine3.14", arch) :-
       is_v1(version),
         run(f"wget --quiet -O /usr/local/bin/traefik 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_linux-${arch_}'");
       is_v2(version),
-        run(f"set -ex; \
-            wget --quiet -O /tmp/traefik.tar.gz 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_v${version}_linux_${arch_}.tar.gz'; \
-            tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik; \
+        run(f"set -ex;
+            wget --quiet -O /tmp/traefik.tar.gz 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_v${version}_linux_${arch_}.tar.gz';
+            tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik;
             rm -f /tmp/traefik.tar.gz;")
     ),
     run("chmod +x /usr/local/bin/traefik"),
