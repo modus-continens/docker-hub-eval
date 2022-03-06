@@ -16,3 +16,5 @@ cp scratch/Dockerfile scratch-v1.Dockerfile
 ./updatev2.sh v2.6.1
 cp alpine/Dockerfile alpine-v2.Dockerfile
 cp scratch/Dockerfile scratch-v2.Dockerfile
+
+cp alpine/entrypoint.sh .

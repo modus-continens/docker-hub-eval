@@ -10,7 +10,7 @@ impl(version, "alpine3.14", arch) :-
         run(f"wget --quiet -O /usr/local/bin/traefik 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_linux-${arch_}'");
       is_v2(version),
         run(f"set -ex; \
-            wget --quiet -O /tmp/traefik.tar.gz 'https://github.com/traefik/traefik/releases/download/${version}/traefik_${version}_linux_${arch_}.tar.gz'; \
+            wget --quiet -O /tmp/traefik.tar.gz 'https://github.com/traefik/traefik/releases/download/v${version}/traefik_v${version}_linux_${arch_}.tar.gz'; \
             tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik; \
             rm -f /tmp/traefik.tar.gz;")
     ),
@@ -26,7 +26,7 @@ impl(version, "alpine3.14", arch) :-
 	# org.opencontainers.image.url="https://traefik.io" \
 	# org.opencontainers.image.title="Traefik" \
 	# org.opencontainers.image.description="A modern reverse-proxy" \
-	# org.opencontainers.image.version="$VERSION" \
+	# org.opencontainers.image.version="v$VERSION" \
 	# org.opencontainers.image.documentation="https://docs.traefik.io"
 
 traefik(version, "scratch", arch) :-
@@ -40,7 +40,7 @@ traefik(version, "scratch", arch) :-
    # 	org.opencontainers.image.url="https://traefik.io" \
    # 	org.opencontainers.image.title="Traefik" \
    # 	org.opencontainers.image.description="A modern reverse-proxy" \
-   # 	org.opencontainers.image.version="$VERSION" \
+   # 	org.opencontainers.image.version="v$VERSION" \
    # 	org.opencontainers.image.documentation="https://docs.traefik.io"
 
 

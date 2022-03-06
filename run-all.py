@@ -94,6 +94,8 @@ def system(cmd, cwd=None, capture=True):
 
     return dur
 
+system("modus --version")
+system("echo true | parallel || { echo Please install the GNU parallel package; exit 1; }")
 
 def code_word_count(fname):
     with open(fname, "rt") as f:
@@ -206,7 +208,6 @@ for app in apps:
             dockerfiles = glob("*.*/Dockerfile.*", recursive=True)
         elif app == "traefik":
             dockerfiles = list(chain(
-                # need to be in this order
                 glob("alpine-*.Dockerfile", recursive=True),
                 glob("scratch-*.Dockerfile", recursive=True),
             ))
@@ -250,17 +251,20 @@ for app, target in app_modus_target.items():
             f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
         sys.stderr.flush()
     cleanup_images()
-    parallel_cmd = "parallel <<EOF\n"
-    for i, (context, fname) in enumerate(app_docker_targets[app]):
-        ctxdir = path.join(root, app, context)
-        build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} -t {app}-docker-{i+1} --no-cache"
-        use_buildkit = app not in app_docker_nobuildkit
-        if use_buildkit:
-            build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
-        else:
-            build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
-        parallel_cmd += build_cmd + "\n"
-    parallel_cmd += "EOF"
+    if path.isfile("custom-build-upstream.sh"):
+        parallel_cmd = "cd upstream.git && bash ../custom-build-upstream.sh"
+    else:
+        parallel_cmd = "parallel <<EOF\n"
+        for i, (context, fname) in enumerate(app_docker_targets[app]):
+            ctxdir = path.join(root, app, context)
+            build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} -t {app}-docker-{i+1} --no-cache"
+            use_buildkit = app not in app_docker_nobuildkit
+            if use_buildkit:
+                build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
+            else:
+                build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
+            parallel_cmd += build_cmd + "\n"
+        parallel_cmd += "EOF"
     if skip_actual_build:
         parallel_cmd = "true # skipped by flag"
     app_docker_times[app] = system(parallel_cmd)
