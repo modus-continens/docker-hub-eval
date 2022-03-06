@@ -120,7 +120,11 @@ codesize_ours_extra = {
     "mysql": ["upstream.git/versions.sh"]
 }
 codesize_theirs_extra = {
-    "node": ["functions.sh"]
+    "node": ["functions.sh"],
+    "mysql": [
+        "versions.sh",
+        "apply-templates.sh"
+    ]
 }
 app_query = {
     "ubuntu": "ubuntu(version)",
