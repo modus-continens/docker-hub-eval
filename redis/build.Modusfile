@@ -69,7 +69,8 @@ redis(version, variant) :-
             redis-server --version")
     )::merge,
     run("mkdir /data && chown redis:redis /data"),
-    copy("docker-entrypoint.sh", "/usr/local/bin/")
+    copy("docker-entrypoint.sh", "/usr/local/bin/"),
+    run("chmod a+rx /usr/local/bin/docker-entrypoint.sh")
   )::set_workdir("/data")
    ::set_entrypoint("docker-entrypoint.sh").
 

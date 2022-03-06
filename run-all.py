@@ -183,7 +183,10 @@ for app in apps:
         with open("arch", "wt") as arch:
             arch.write("amd64")
         app_docker_prepare_time[app] += system("./update.sh")
-        dockerfiles = glob("**/*Dockerfile", recursive=True)
+        if app == "mysql":
+            dockerfiles = glob("*.*/Dockerfile.*", recursive=True)
+        else:
+            dockerfiles = glob("**/*Dockerfile", recursive=True)
         targets = []
         for d in dockerfiles:
             dir = path.relpath(path.abspath(

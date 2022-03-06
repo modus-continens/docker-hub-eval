@@ -126,7 +126,9 @@ mysql(major_version, dist, variant, arch) :-
           ${dnf} install -y \"mysql-shell-\$MYSQL_SHELL_VERSION\"; \
           ${dnf} clean all"),
       run("mysqlsh --version"),
-      copy("docker-entrypoint.sh", "/usr/local/bin/"))
+      copy("docker-entrypoint.sh", "/usr/local/bin/")
+    ),
+    run("chmod a+rx /usr/local/bin/docker-entrypoint.sh")
   )::set_entrypoint("docker-entrypoint.sh").
 
 
