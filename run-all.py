@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
+from itertools import chain
 import os
 import re
-from statistics import mean
 import subprocess
 from os import isatty, path
 from time import time, sleep
 from glob import glob
 import sys
 import json
-
-from more_itertools import flatten
 
 root = path.abspath(path.dirname(__file__))
 
@@ -49,10 +47,12 @@ def system(cmd, cwd=None, capture=True):
                 dur = time() - start_time
                 stdout_read = proc.stdout.read()
                 if stdout_read:
-                    stdout.append(stdout_read.decode("utf-8", errors="replace"))
+                    stdout.append(stdout_read.decode(
+                        "utf-8", errors="replace"))
                 stderr_read = proc.stderr.read()
                 if stderr_read:
-                    stderr.append(stderr_read.decode("utf-8", errors="replace"))
+                    stderr.append(stderr_read.decode(
+                        "utf-8", errors="replace"))
                 if isatty(sys.stderr.fileno()):
                     sys.stderr.write("\x1b[2K\r\x1b[34m=> ")
                     sys.stderr.write(cmd_nonewline)
@@ -99,7 +99,7 @@ def code_word_count(fname):
         return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
 
 
-apps = ["ubuntu", "redis", "node"]
+apps = ["ubuntu", "redis", "node", "mysql"]
 if len(sys.argv) > 1:
     only_run = sys.argv[1:]
     for app in only_run:
@@ -114,6 +114,10 @@ upstream_git = {
     "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
     "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
     "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
+    "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
+}
+codesize_ours_extra = {
+    "mysql": ["upstream.git/versions.sh"]
 }
 codesize_theirs_extra = {
     "node": ["functions.sh"]
@@ -121,7 +125,8 @@ codesize_theirs_extra = {
 app_query = {
     "ubuntu": "ubuntu(version)",
     "redis": "redis(version, variant)",
-    "node": "node(version, variant, arch, yarn_version)"
+    "node": "node(version, variant, arch, yarn_version)",
+    "mysql": "mysql(major_version, dist, variant, \"amd64\")",
 }
 
 
@@ -159,11 +164,17 @@ for app in apps:
         system(f"git checkout '{commit_sha}'")
         chdir(app)
 
-    if path.isfile("generate-versions.sh"):
-        app_modus_prepare_time[app] += system(
-            "bash ./generate-versions.sh > generated.Modusfile")
-        system("cat build.Modusfile >> generated.Modusfile")
-        app_modus_target[app] = "generated.Modusfile"
+    app_modus_target[app] = "generated.Modusfile"
+    for our_prepare_script in ["generate-versions.sh", "generate-versions.py"]:
+        if path.isfile(our_prepare_script):
+            if our_prepare_script.endswith(".sh"):
+                it = "bash"
+            elif our_prepare_script.endswith(".py"):
+                it = "python"
+            app_modus_prepare_time[app] += system(
+                f"{it} ./{our_prepare_script} > generated.Modusfile")
+            system("cat build.Modusfile >> generated.Modusfile")
+            break
     else:
         app_modus_target[app] = "Modusfile"
 
@@ -243,15 +254,17 @@ def print_codesize(app):
     m_words, m_lines = code_word_count("build.Modusfile")
     ours_total_words += m_words
     ours_total_lines += m_lines
-    if path.isfile("generate-versions.sh"):
-        u_words, u_lines = code_word_count("generate-versions.sh")
-        ours_total_words += u_words
-        ours_total_lines += u_lines
-        print(f"  generate-versions.sh: {u_words} words, {u_lines} lines")
+    our_extra = []
+    if app in codesize_ours_extra:
+        our_extra = codesize_ours_extra[app]
+    for our_prepare_script in chain(["generate-versions.sh", "generate-versions.py"], our_extra):
+        if path.isfile(our_prepare_script):
+            u_words, u_lines = code_word_count(our_prepare_script)
+            ours_total_words += u_words
+            ours_total_lines += u_lines
+            print(f"  {our_prepare_script}: {u_words} words, {u_lines} lines")
     print(f"  build.Modusfile: {m_words} words, {m_lines} lines")
-    if u_words != 0:
-        print(
-            f"  Ours total: {ours_total_words} words, {ours_total_lines} lines")
+    print(f"  Ours total: {ours_total_words} words, {ours_total_lines} lines")
     print(f"\x1b[1mTheirs:\x1b[0m")
     theirs_words = 0
     theirs_lines = 0
@@ -260,11 +273,7 @@ def print_codesize(app):
                  for p in codesize_theirs_extra[app]]
     else:
         extra = []
-    for t in flatten([
-        glob("upstream.git/**/*.template", recursive=True),
-        ["upstream.git/update.sh"],
-        extra
-    ]):
+    for t in chain(glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"], extra):
         if path.isfile(t):
             words, lines = code_word_count(t)
             theirs_words += words
