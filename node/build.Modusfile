@@ -12,8 +12,8 @@ debian_variant(v) :- debian_slim_variant(v); debian_full_variant(v).
 node(version, variant, arch, yarn_version) :-
   node_version(version, variant, arch, yarn_version),
   (
+    base_image(variant),
     (
-      base_image(variant),
       setup_deps(variant),
       arch_str(arch, arch_),
       (
