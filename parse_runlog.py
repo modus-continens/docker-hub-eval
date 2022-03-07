@@ -38,10 +38,15 @@ print("| app | Update version list (Modus) | Modus build | upstream ./update.sh 
 print("| --- | --- | --- | --- | --- | --- |")
 for app in apps:
     cols = {}
+    n = -1
     for name in dicts.keys():
         if app not in dicts[name] or len(dicts[name][app]) == 0:
             continue
         app_vals = dicts[name][app]
+        if n == -1:
+            n = len(app_vals)
+        elif n != len(app_vals):
+            print(f"ERROR: {app}: len mismatch")
         m = mean(app_vals)
         s = sem(app_vals)
         if s > 1e-6:
@@ -51,4 +56,4 @@ for app in apps:
             cols[name] = f"{m:.2f} ({left:.2f} - {right:.2f})"
         else:
             cols[name] = f"{m:.2f}"
-    print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} |")
+    print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n}")
