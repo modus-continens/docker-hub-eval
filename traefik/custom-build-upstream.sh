@@ -10,3 +10,8 @@ parallel <<EOF
 docker build --no-cache . -f scratch-v1.Dockerfile -t traefik:v1.7.34-scratch
 docker build --no-cache . -f scratch-v2.Dockerfile -t traefik:v2.6.1-scratch
 EOF
+
+docker image rm traefik:v1.7.34-alpine
+docker image rm traefik:v2.6.1-alpine
+docker image rm traefik:v1.7.34-scratch
+docker image rm traefik:v2.6.1-scratch

@@ -270,7 +270,7 @@ for app, target in app_modus_target.items():
         parallel_cmd = "parallel <<EOF\n"
         for i, (context, fname) in enumerate(app_docker_targets[app]):
             ctxdir = path.join(root, app, context)
-            build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} -t {app}-docker-{i+1} --no-cache"
+            build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} --no-cache"
             use_buildkit = app not in app_docker_nobuildkit
             if use_buildkit:
                 build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
