@@ -241,9 +241,9 @@ for app, target in app_modus_target.items():
             p = path.join(context, fname)
             with open(p, "rt") as f:
                 s = f.read()
-                matches = re.match(r"(^|\n)FROM (\S*)", s, re.IGNORECASE)
+                matches = re.search(r"(^|\n)FROM (\S+)", s, flags=re.IGNORECASE)
                 if matches:
-                    for image in matches.captures(1):
+                    for image in matches.captures(2):
                         if image == "scratch" or image.startswith("traefik"):
                             continue
                         if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
