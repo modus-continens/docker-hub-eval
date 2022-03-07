@@ -28,6 +28,9 @@ Theirs:
   upstream.git/update.sh: 561 words, 118 lines
   Theirs total: 561 words, 118 lines
    Entering /home/tingmao/docker-hub-eval/redis
+```
+
+```
 Performance report for redis:
   Modus build time: 1.5s version parsing + 349.1s modus build = 350.6s
   Docker build times: 1.4s in update.sh
@@ -46,6 +49,9 @@ Theirs:
   upstream.git/update.sh: 362 words, 97 lines
   Theirs total: 1743 words, 327 lines
    Entering /home/tingmao/docker-hub-eval/node
+```
+
+```
 Performance report for node:
   Modus build time: 4.8s version parsing + 184.1s modus build = 188.9s
   Docker build times: 1.4s in update.sh
@@ -65,6 +71,9 @@ Theirs:
   upstream.git/functions.sh: 843 words, 361 lines
   Theirs total: 2923 words, 841 lines
    Entering /home/tingmao/docker-hub-eval/mysql
+```
+
+```
 Performance report for mysql:
   Modus build time: 1.8s version parsing + 161.1s modus build = 162.8s
   Docker build times: 4.1s in update.sh
@@ -83,6 +92,9 @@ Theirs:
   upstream.git/apply-templates.sh: 142 words, 48 lines
   Theirs total: 573 words, 196 lines
    Entering /home/tingmao/docker-hub-eval/traefik
+```
+
+```
 Performance report for traefik:
   Modus build time: 0s version parsing + 11.1s modus build = 11.1s
   Docker build times: 0.1s in update.sh
