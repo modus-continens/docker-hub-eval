@@ -336,3 +336,11 @@ for app in apps:
     print("")
     print("====================")
     print("")
+
+print(">>>>")
+print(json.dumps({
+    "app_modus_time": app_modus_time,
+    "app_modus_prepare_time": app_modus_prepare_time,
+    "app_docker_times": app_docker_times,
+    "app_docker_prepare_time": app_docker_prepare_time,
+}, indent=None))
