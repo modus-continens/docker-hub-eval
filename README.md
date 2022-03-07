@@ -7,7 +7,7 @@ The following commands need to be available:
 * git
 * parallel
 * dpkg (can be installed in non-debian distros)
-* jq, sed, awk
+* jq, sed, awk, gawk
 * modus = 0.1.8 (`cargo install modus --version 0.1.8` or download from https://github.com/modus-continens/modus/releases/download/0.1.8/modus-0.1.8.x86_64-linux-musl)
 
 ## Results
