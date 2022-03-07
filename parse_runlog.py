@@ -56,4 +56,4 @@ for app in apps:
             cols[name] = f"{m:.2f} ({left:.2f} - {right:.2f})"
         else:
             cols[name] = f"{m:.2f}"
-    print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n}")
+    print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n} |")
