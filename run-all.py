@@ -188,7 +188,7 @@ for app in apps:
             if our_prepare_script.endswith(".sh"):
                 it = "bash"
             elif our_prepare_script.endswith(".py"):
-                it = "python"
+                it = "python3"
             app_modus_prepare_time[app] += system(
                 f"{it} ./{our_prepare_script} > generated.Modusfile")
             system("cat build.Modusfile >> generated.Modusfile")
