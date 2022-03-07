@@ -12,4 +12,6 @@ The following commands need to be available:
 
 ## Results
 
+Time measurements **does not include** the time it takes to pull base images, as these are cached locally.
+
 TODO

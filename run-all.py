@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from itertools import chain
 import os
-import re
+import regex as re
 import subprocess
 from os import isatty, path
 from time import time, sleep
@@ -153,11 +153,8 @@ def cleanup_images():
     if skip_actual_build:
         return
     system("docker container prune -f")
-    system("docker image rm -f $(docker image ls -aq) || true")
     system("docker image prune -f")
-    system("docker image prune -f")
-    # system("docker buildx prune -f")
-    # takes too long
+    system("docker builder prune -f")
 
 
 app_modus_target = {}
@@ -238,6 +235,18 @@ for app, target in app_modus_target.items():
     json_out = path.join(root, "modus-build.json")
     if path.isfile(json_out):
         os.remove(json_out)
+
+    if not skip_actual_build:
+        for (context, fname) in app_docker_targets[app]:
+            p = path.join(context, fname)
+            with open(p, "rt") as f:
+                s = f.read()
+                for image in re.match("^FROM (\S*)", s).captures(1):
+                    if image == "scratch" or image.startswith("traefik"):
+                        continue
+                    if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+                        system(f"docker pull {image}")
+
     if not skip_actual_build:
         app_modus_time[app] = system(
             f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
