@@ -241,11 +241,13 @@ for app, target in app_modus_target.items():
             p = path.join(context, fname)
             with open(p, "rt") as f:
                 s = f.read()
-                for image in re.match("^FROM (\S*)", s).captures(1):
-                    if image == "scratch" or image.startswith("traefik"):
-                        continue
-                    if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
-                        system(f"docker pull {image}")
+                matches = re.match(r"(^|\n)FROM (\S*)", s, re.IGNORECASE)
+                if matches:
+                    for image in matches.captures(1):
+                        if image == "scratch" or image.startswith("traefik"):
+                            continue
+                        if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+                            system(f"docker pull {image}")
 
     if not skip_actual_build:
         app_modus_time[app] = system(
