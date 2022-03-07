@@ -333,3 +333,6 @@ for app in apps:
     print_performance(app)
     print("")
     print_codesize(app)
+    print("")
+    print("====================")
+    print("")
