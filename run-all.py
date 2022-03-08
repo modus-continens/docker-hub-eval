@@ -27,6 +27,11 @@ def chdir(dir):
 chdir(".")
 
 
+class ExperimentFailedException(Exception):
+    def __init__(self):
+        super().__init__("Experiment failed")
+
+
 def system(cmd, cwd=None, capture=True):
     cmd_nonewline = re.sub("\n.*$", " ...", cmd,
                            flags=re.MULTILINE | re.DOTALL)
@@ -87,7 +92,7 @@ def system(cmd, cwd=None, capture=True):
             sys.stderr.write("\n\x1b[0m")
         sys.stderr.write(f"      The above command returned {ret}\n")
         sys.stderr.flush()
-        exit(1)
+        raise ExperimentFailedException
     else:
         sys.stderr.write("\n")
         sys.stderr.flush()
@@ -114,7 +119,7 @@ upstream_git = {
     "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
     "traefik": ("https://github.com/traefik/traefik-library-image.git", "19b29d4858c12d74647d59214e0a9417646343ca"),
 }
-apps = list(upstream_git.keys())
+apps = list(sorted(upstream_git.keys()))
 if len(sys.argv) > 1:
     only_run = sys.argv[1:]
     for app in only_run:
@@ -229,62 +234,6 @@ for app in apps:
             print(f"    {dir}/{dfile}")
         app_docker_times[app] = 0
 
-for app, target in app_modus_target.items():
-    chdir(app)
-    cleanup_images()
-    json_out = path.join(root, "modus-build.json")
-    if path.isfile(json_out):
-        os.remove(json_out)
-
-    if not skip_actual_build:
-        for (context, fname) in app_docker_targets[app]:
-            p = path.join(context, fname)
-            with open(p, "rt") as f:
-                s = f.read()
-                matches = re.search(r"(^|\n)FROM (\S+)", s, flags=re.IGNORECASE)
-                if matches:
-                    for image in matches.captures(2):
-                        if image == "scratch" or image.startswith("traefik"):
-                            continue
-                        if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
-                            system(f"docker pull {image}")
-
-    if not skip_actual_build:
-        app_modus_time[app] = system(
-            f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
-        with open(json_out, "rt") as f:
-            modus_outputs = json.load(f)
-        os.remove(json_out)
-    else:
-        app_modus_time[app] = system(
-            f"modus proof . -f '{target}' '{app_query[app]}'")
-        modus_outputs = []
-    if len(modus_outputs) != len(app_docker_targets[app]):
-        if isatty(sys.stderr.fileno()):
-            sys.stderr.write("\x1b[31;1m")
-        sys.stderr.write(
-            f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
-        sys.stderr.flush()
-    cleanup_images()
-    if path.isfile("custom-build-upstream.sh"):
-        parallel_cmd = "cd upstream.git && bash ../custom-build-upstream.sh"
-    else:
-        parallel_cmd = "parallel <<EOF\n"
-        for i, (context, fname) in enumerate(app_docker_targets[app]):
-            ctxdir = path.join(root, app, context)
-            build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} --no-cache"
-            use_buildkit = app not in app_docker_nobuildkit
-            if use_buildkit:
-                build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
-            else:
-                build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
-            parallel_cmd += build_cmd + "\n"
-        parallel_cmd += "EOF"
-    if skip_actual_build:
-        parallel_cmd = "true # skipped by flag"
-    app_docker_times[app] = system(parallel_cmd)
-
-
 def print_performance(app):
     print(f"Performance report for {app}:")
     modus_time = app_modus_time[app]
@@ -298,6 +247,72 @@ def print_performance(app):
     print(f"    + {round(docker_time, 1)}s in docker build (parallel)")
     print(f"    = {round(docker_prepare_time + docker_time, 1)}s")
 
+
+for app, target in app_modus_target.items():
+    try:
+        chdir(app)
+        cleanup_images()
+        json_out = path.join(root, "modus-build.json")
+        if path.isfile(json_out):
+            os.remove(json_out)
+
+        if not skip_actual_build:
+            for (context, fname) in app_docker_targets[app]:
+                p = path.join(context, fname)
+                with open(p, "rt") as f:
+                    s = f.read()
+                    matches = re.search(r"(^|\n)FROM (\S+)",
+                                        s, flags=re.IGNORECASE)
+                    if matches:
+                        for image in matches.captures(2):
+                            if image == "scratch" or image.startswith("traefik"):
+                                continue
+                            if subprocess.run(["docker", "image", "inspect", image], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+                                system(f"docker pull {image}")
+
+        if not skip_actual_build:
+            app_modus_time[app] = system(
+                f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
+            with open(json_out, "rt") as f:
+                modus_outputs = json.load(f)
+            os.remove(json_out)
+        else:
+            app_modus_time[app] = system(
+                f"modus proof . -f '{target}' '{app_query[app]}'")
+            modus_outputs = []
+        if len(modus_outputs) != len(app_docker_targets[app]):
+            if isatty(sys.stderr.fileno()):
+                sys.stderr.write("\x1b[31;1m")
+            sys.stderr.write(
+                f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
+            sys.stderr.flush()
+        cleanup_images()
+        if path.isfile("custom-build-upstream.sh"):
+            parallel_cmd = "cd upstream.git && bash ../custom-build-upstream.sh"
+        else:
+            parallel_cmd = "parallel <<EOF\n"
+            for i, (context, fname) in enumerate(app_docker_targets[app]):
+                ctxdir = path.join(root, app, context)
+                build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} --no-cache"
+                use_buildkit = app not in app_docker_nobuildkit
+                if use_buildkit:
+                    build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
+                else:
+                    build_cmd = f"DOCKER_BUILDKIT=0 {build_cmd}"
+                parallel_cmd += build_cmd + "\n"
+            parallel_cmd += "EOF"
+        if skip_actual_build:
+            parallel_cmd = "true # skipped by flag"
+        app_docker_times[app] = system(parallel_cmd)
+
+        print_performance(app)
+    except ExperimentFailedException:
+        rest_index = apps.index(app)
+        remaining = apps[rest_index:]
+        sys.stderr.write("To retry this failed experiment and continue with the remaining, run:\n")
+        sys.stderr.write(f"  ./run-all.py {' '.join(remaining)}\n")
+        sys.stderr.flush()
+        exit(1)
 
 def print_codesize(app):
     print(f"Code size report for {app}:")

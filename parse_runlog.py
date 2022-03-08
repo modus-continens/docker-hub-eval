@@ -36,7 +36,7 @@ for file in os.listdir("runlog"):
 colorder = ["app_modus_prepare_time", "app_modus_time", "app_docker_prepare_time", "app_docker_times"]
 print("| app | Update version list (Modus) | Modus build | upstream ./update.sh | upstream Docker build | n |")
 print("| --- | --- | --- | --- | --- | --- |")
-for app in apps:
+for app in sorted(apps):
     cols = {}
     n = -1
     for name in dicts.keys():
