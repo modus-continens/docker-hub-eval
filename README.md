@@ -10,6 +10,11 @@ The following commands need to be available:
 * jq, sed, awk, gawk
 * modus = 0.1.9 (`cargo install modus --version 0.1.9` or download from https://github.com/modus-continens/modus/releases/download/0.1.9/modus-0.1.9.x86_64-linux-musl)
 
+**Following data outdated**
+
+
+<del>
+
 ## Results (EC2)
 
 Time measurements **does not include** the time it takes to pull base images, as these are cached locally.
@@ -46,3 +51,5 @@ Numbers in parentheses are the 95% confidence interval of the population mean.
 | node | 4.78 (4.38 - 5.19) | 151.11 (150.28 - 151.95) | 1.22 (1.21 - 1.23) | 203.10 (202.59 - 203.62) | 21 |
 | traefik | 0.00 | 9.76 (9.34 - 10.17) | 0.03 (0.03 - 0.03) | 26.15 (23.11 - 29.19) | 20 |
 | redis | 1.39 (1.31 - 1.48) | 394.52 (393.01 - 396.03) | 1.20 (1.14 - 1.25) | 366.08 (364.84 - 367.32) | 21 |
+
+</del>

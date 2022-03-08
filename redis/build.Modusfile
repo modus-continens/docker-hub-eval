@@ -2,37 +2,34 @@ redis(version, variant) :-
   redis_version(version, variant, download_url, sha_type, sha),
   variant != "alpine",
   (
-    from("debian:bullseye-slim")
-      ::set_env("GOSU_VERSION", "1.14")
-      ::set_env("REDIS_VERSION", version)
-      ::set_env("REDIS_DOWNLOAD_URL", download_url)
-      ::set_env("REDIS_DOWNLOAD_SHA", sha),
-    # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
-    run("groupadd -r -g 999 redis && useradd -r -g redis -u 999 redis"),
-    # grab gosu for easy step-down from root
-    # https://github.com/tianon/gosu/releases
-    run("set -eux;
-          savedAptMark=\"$(apt-mark showmanual)\";
-          apt-get update;
-          apt-get install -y --no-install-recommends ca-certificates dirmngr gnupg wget;
-          rm -rf /var/lib/apt/lists/*;
-          dpkgArch=\"$(dpkg --print-architecture | awk -F- '{ print $NF }')\";
-          wget -O /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch\";
-          wget -O /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc\";
-          export GNUPGHOME=\"$(mktemp -d)\";
-          gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4;
-          gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu;
-          gpgconf --kill all;
-          rm -rf \"$GNUPGHOME\" /usr/local/bin/gosu.asc;
-          apt-mark auto '.*' > /dev/null;
-          [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null;
-          apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false;
-          chmod +x /usr/local/bin/gosu;
-          gosu --version;
-          gosu nobody true"),
-    config(version, variant, make_target, build_tls),
-    apt_dep(variant, build_tls, libc6, libssl),
     (
+      from("debian:bullseye-slim")
+        ::set_env("GOSU_VERSION", "1.14"),
+      # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+      run("groupadd -r -g 999 redis && useradd -r -g redis -u 999 redis"),
+      # grab gosu for easy step-down from root
+      # https://github.com/tianon/gosu/releases
+      run("set -eux;
+            savedAptMark=\"$(apt-mark showmanual)\";
+            apt-get update;
+            apt-get install -y --no-install-recommends ca-certificates dirmngr gnupg wget;
+            rm -rf /var/lib/apt/lists/*;
+            dpkgArch=\"$(dpkg --print-architecture | awk -F- '{ print $NF }')\";
+            wget -O /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch\";
+            wget -O /usr/local/bin/gosu.asc \"https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc\";
+            export GNUPGHOME=\"$(mktemp -d)\";
+            gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4;
+            gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu;
+            gpgconf --kill all;
+            rm -rf \"$GNUPGHOME\" /usr/local/bin/gosu.asc;
+            apt-mark auto '.*' > /dev/null;
+            [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark > /dev/null;
+            apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false;
+            chmod +x /usr/local/bin/gosu;
+            gosu --version;
+            gosu nobody true"),
+      config(version, variant, make_target, build_tls),
+      apt_dep(variant, build_tls, libc6, libssl),
       run(f"set -eux;
 
           apt-mark showmanual > /_saved_apt_mark;
@@ -47,7 +44,11 @@ redis(version, variant) :-
             ${libssl} \
             make \
           ;
-          rm -rf /var/lib/apt/lists/*"),
+          rm -rf /var/lib/apt/lists/*")
+    )::set_env("REDIS_VERSION", version)
+     ::set_env("REDIS_DOWNLOAD_URL", download_url)
+     ::set_env("REDIS_DOWNLOAD_SHA", sha),
+    (
       extract_redis(sha_type),
       protected_mode_sed(version),
       patch_and_build(make_target, build_tls),

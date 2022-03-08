@@ -3,61 +3,62 @@ mysql(major_version, dist, variant, arch) :-
   mysql_version(version, major_version, dist, variant, arch, mysql_shell_version),
   (
     (
-      base_image(dist, variant),
-      setup(dist)
-    )::set_env("GOSU_VERSION", gosu_version)
-    ::set_env("MYSQL_MAJOR", major_version)
-    ::set_env("MYSQL_VERSION", version)
-    ::set_env("MYSQL_SHELL_VERSION", mysql_shell_version),
-    gosu(dist, arch, gosu_version),
-    (dist = "debian",
-      # FATAL ERROR: please install the following Perl modules before executing /usr/local/mysql/scripts/mysql_install_db:
-      # File::Basename
-      # File::Copy
-      # Sys::Hostname
-      # Data::Dumper
-      # install "xz-utils" for .sql.xz docker-entrypoint-initdb.d files
-      run("set -eux;
-            mkdir /docker-entrypoint-initdb.d;
-            apt-get update;
-            apt-get install -y --no-install-recommends \
-              openssl \
-              perl \
-              xz-utils;
-            rm -rf /var/lib/apt/lists/*");
-    dist = "oracle",
-      (string_concat("7", _, variant),
-        dnf = "yum",
-        findutils = "";
-      !string_concat("7", _, variant),
-        dnf = "microdnf",
-        # Oracle Linux 8+ is very slim :)
-        findutils = "findutils"),
-      run(f"set -eux;
-            ${dnf} install -y \
-              gzip \
-              openssl \
-              xz \
-              ${findutils};
-            ${dnf} clean all")
-    ),
-    (
-      # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
-      # gpg: key 3A79BD29: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
-      run("set -eux;
-            mkdir $GNUPGHOME && chmod go-rwx $GNUPGHOME;
-            gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\""),
+      (
+        base_image(dist, variant),
+        setup(dist)
+      )::set_env("GOSU_VERSION", gosu_version),
+      gosu(dist, arch, gosu_version),
       (dist = "debian",
-        run("mkdir -p /etc/apt/keyrings;
-              gpg --batch --export \"$key\" > /etc/apt/keyrings/mysql.gpg;
-              gpgconf --kill all;");
+        # FATAL ERROR: please install the following Perl modules before executing /usr/local/mysql/scripts/mysql_install_db:
+        # File::Basename
+        # File::Copy
+        # Sys::Hostname
+        # Data::Dumper
+        # install "xz-utils" for .sql.xz docker-entrypoint-initdb.d files
+        run("set -eux;
+              mkdir /docker-entrypoint-initdb.d;
+              apt-get update;
+              apt-get install -y --no-install-recommends \
+                openssl \
+                perl \
+                xz-utils;
+              rm -rf /var/lib/apt/lists/*");
       dist = "oracle",
-        run("gpg --batch --export --armor \"$key\" > /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql")
+        (string_concat("7", _, variant),
+          dnf = "yum",
+          findutils = "";
+        !string_concat("7", _, variant),
+          dnf = "microdnf",
+          # Oracle Linux 8+ is very slim :)
+          findutils = "findutils"),
+        run(f"set -eux;
+              ${dnf} install -y \
+                gzip \
+                openssl \
+                xz \
+                ${findutils};
+              ${dnf} clean all")
       ),
-      run("rm -rf \"$GNUPGHOME\"")
-    )::in_env("key", "859BE8D7C586F538430B19C2467B942D3A79BD29")
-     ::in_env("GNUPGHOME", "/tmp/gpg-tmp-home")
-     ::merge,
+      (
+        # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
+        # gpg: key 3A79BD29: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
+        run("set -eux;
+              mkdir $GNUPGHOME && chmod go-rwx $GNUPGHOME;
+              gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\""),
+        (dist = "debian",
+          run("mkdir -p /etc/apt/keyrings;
+                gpg --batch --export \"$key\" > /etc/apt/keyrings/mysql.gpg;
+                gpgconf --kill all;");
+        dist = "oracle",
+          run("gpg --batch --export --armor \"$key\" > /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql")
+        ),
+        run("rm -rf \"$GNUPGHOME\"")
+      )::in_env("key", "859BE8D7C586F538430B19C2467B942D3A79BD29")
+       ::in_env("GNUPGHOME", "/tmp/gpg-tmp-home")
+       ::merge
+    )::set_env("MYSQL_MAJOR", major_version)
+     ::set_env("MYSQL_VERSION", version)
+     ::set_env("MYSQL_SHELL_VERSION", mysql_shell_version),
     (dist = "debian",
       run(f"echo 'deb [ signed-by=/etc/apt/keyrings/mysql.gpg ] http://repo.mysql.com/apt/debian/ ${variant} mysql-${major_version}' > /etc/apt/sources.list.d/mysql.list"),
       # the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
