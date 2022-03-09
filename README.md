@@ -8,7 +8,7 @@ The following commands need to be available:
 * parallel
 * dpkg (can be installed in non-debian distros)
 * jq, sed, awk, gawk
-* modus = 0.1.9 (`cargo install modus --version 0.1.9` or download from https://github.com/modus-continens/modus/releases/download/0.1.9/modus-0.1.9.x86_64-linux-musl)
+* modus = 0.1.10 (`cargo install modus --version 0.1.10` or download from https://github.com/modus-continens/modus/releases/download/0.1.10/modus-0.1.10.x86_64-linux-musl)
 
 The following python packages are needed for running the experiment:
 
