@@ -168,6 +168,7 @@ app_modus_prepare_time = {}
 app_docker_prepare_time = {}
 app_modus_time = {}
 app_docker_times = {}
+app_profiling_info = {}
 # The Dockerfile for these apps does not work under buildkit.
 app_docker_nobuildkit = []
 
@@ -253,8 +254,11 @@ for app, target in app_modus_target.items():
         chdir(app)
         cleanup_images()
         json_out = path.join(root, "modus-build.json")
+        profiling_out = path.join(root, "profiling.json")
         if path.isfile(json_out):
             os.remove(json_out)
+        if path.isfile(profiling_out):
+            os.remove(profiling_out)
 
         if not skip_actual_build:
             for (context, fname) in app_docker_targets[app]:
@@ -272,14 +276,18 @@ for app, target in app_modus_target.items():
 
         if not skip_actual_build:
             app_modus_time[app] = system(
-                f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out}", capture=False)
+                f"modus build . --custom-buildkit-frontend=ghcr.io/modus-continens/modus-buildkit-frontend -f '{target}' '{app_query[app]}' --no-cache --json={json_out} --output-profiling={profiling_out}", capture=False)
             with open(json_out, "rt") as f:
                 modus_outputs = json.load(f)
+            with open(profiling_out, "rt") as f:
+                profiling_info = json.load(f)
             os.remove(json_out)
         else:
             app_modus_time[app] = system(
                 f"modus proof . -f '{target}' '{app_query[app]}'")
             modus_outputs = []
+            profiling_info = {}
+        app_profiling_info[app] = profiling_info
         if len(modus_outputs) != len(app_docker_targets[app]):
             if isatty(sys.stderr.fileno()):
                 sys.stderr.write("\x1b[31;1m")
@@ -369,4 +377,5 @@ print(json.dumps({
     "app_modus_prepare_time": app_modus_prepare_time,
     "app_docker_times": app_docker_times,
     "app_docker_prepare_time": app_docker_prepare_time,
+    "app_profiling_info": app_profiling_info,
 }, indent=None))

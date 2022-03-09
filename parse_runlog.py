@@ -31,11 +31,23 @@ for file in os.listdir("runlog"):
                     dicts[name][app].append(val)
                     apps.add(app)
             for n in j.keys():
-                do_item(n)
+                if n == "app_profiling_info":
+                    app_profiling_info = j[n]
+                    for app, pinfo in app_profiling_info.items():
+                        for key, val in pinfo.items():
+                            dkey = f"app_profiling_{key}"
+                            if dkey not in dicts:
+                                dicts[dkey] = {}
+                            if app not in dicts[dkey]:
+                                dicts[dkey][app] = []
+                            dicts[dkey][app].append(val)
+                            apps.add(app)
+                else:
+                    do_item(n)
 
-colorder = ["app_modus_prepare_time", "app_modus_time", "app_docker_prepare_time", "app_docker_times"]
-print("| app | Update version list (Modus) | Modus build | upstream ./update.sh | upstream Docker build | n |")
-print("| --- | --- | --- | --- | --- | --- |")
+colorder = ["app_modus_prepare_time", "app_modus_time", "app_profiling_exporting_total", "app_docker_prepare_time", "app_docker_times"]
+print("| app | Update version list (Modus) | Modus build total time | Modus Exporting time | upstream ./update.sh | upstream Docker build | n |")
+print("| --- | --- | --- | --- | --- | --- | --- |")
 for app in sorted(apps):
     cols = {}
     n = -1
