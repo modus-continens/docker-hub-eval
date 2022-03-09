@@ -3,12 +3,20 @@
 The following commands need to be available:
 
 * bash and other basic unix utilities, curl, wget
-* python
+* python3
 * git
 * parallel
 * dpkg (can be installed in non-debian distros)
 * jq, sed, awk, gawk
 * modus = 0.1.9 (`cargo install modus --version 0.1.9` or download from https://github.com/modus-continens/modus/releases/download/0.1.9/modus-0.1.9.x86_64-linux-musl)
+
+The following python packages are needed for running the experiment:
+
+* regex
+
+And the following are needed for parsing the result:
+
+* scipy (for confidence interval / sttatistical testing)
 
 **Following data outdated**
 
