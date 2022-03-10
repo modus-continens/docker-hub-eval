@@ -12,6 +12,7 @@ import json
 root = path.abspath(path.dirname(__file__))
 
 skip_actual_build = False
+push_to = os.environ.get("IMAGE_PUSH_TO")
 
 
 def chdir(dir):
@@ -248,6 +249,8 @@ def print_performance(app):
     print(f"    + {round(docker_time, 1)}s in docker build (parallel)")
     print(f"    = {round(docker_prepare_time + docker_time, 1)}s")
 
+def sanitize_tag_name(tag):
+    return re.sub("[^a-zA-Z0-9_.-]", "_", tag)
 
 for app, target in app_modus_target.items():
     try:
@@ -294,7 +297,13 @@ for app, target in app_modus_target.items():
             sys.stderr.write(
                 f"Warning: modus reported {len(modus_outputs)} output images, but {app} has {len(app_docker_targets[app])} Dockerfiles\n")
             sys.stderr.flush()
+        if push_to is not None and not skip_actual_build:
+            for output in modus_outputs:
+                push_tag = push_to + f":{app}-modus-{sanitize_tag_name('-'.join(output['args']))}"
+                system(f"docker tag {output['digest']} {push_tag}")
+                system(f"docker push {push_tag}")
         cleanup_images()
+        push_tags = []
         if path.isfile("custom-build-upstream.sh"):
             parallel_cmd = "cd upstream.git && bash ../custom-build-upstream.sh"
         else:
@@ -302,6 +311,10 @@ for app, target in app_modus_target.items():
             for i, (context, fname) in enumerate(app_docker_targets[app]):
                 ctxdir = path.join(root, app, context)
                 build_cmd = f"docker build '{ctxdir}' -f {path.join(ctxdir, fname)} --no-cache"
+                if push_to is not None:
+                    push_tag = push_to + f":{app}-dockerfile-{sanitize_tag_name(path.relpath(ctxdir, path.join(root, app, 'upstream.git')))}-{sanitize_tag_name(fname)}"
+                    build_cmd = build_cmd + " -t " + push_tag
+                    push_tags.append(push_tag)
                 use_buildkit = app not in app_docker_nobuildkit
                 if use_buildkit:
                     build_cmd = f"DOCKER_BUILDKIT=1 {build_cmd}"
@@ -312,6 +325,8 @@ for app, target in app_modus_target.items():
         if skip_actual_build:
             parallel_cmd = "true # skipped by flag"
         app_docker_times[app] = system(parallel_cmd)
+        for pt in push_tags:
+            system(f"docker push {pt}")
 
         print_performance(app)
     except ExperimentFailedException:
