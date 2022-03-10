@@ -276,7 +276,7 @@ for app, target in app_modus_target.items():
 
         if not skip_actual_build:
             app_modus_time[app] = system(
-                f"modus build . --custom-buildkit-frontend=ghcr.io/modus-continens/modus-buildkit-frontend -f '{target}' '{app_query[app]}' --no-cache --json={json_out} --output-profiling={profiling_out}", capture=False)
+                f"modus build . -f '{target}' '{app_query[app]}' --no-cache --json={json_out} --output-profiling={profiling_out}", capture=False)
             with open(json_out, "rt") as f:
                 modus_outputs = json.load(f)
             with open(profiling_out, "rt") as f:
