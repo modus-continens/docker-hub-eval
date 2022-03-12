@@ -28,10 +28,11 @@ def run():
       if rm_last is not None:
         system(["docker", "rmi", rm_last])
       smoke_test_cmd = None
-      for sk, sc in SMOKE_TESTS.items():
-        if sk in tag:
-          smoke_test_cmd = sc
-          break
+      if "scratch" not in tag:
+        for sk, sc in SMOKE_TESTS.items():
+          if sk in tag:
+            smoke_test_cmd = sc
+            break
       if smoke_test_cmd is not None:
         system(["docker", "run", "--rm", "--entrypoint", "sh", f"{repo}:{tag}", "-c", smoke_test_cmd])
       if path.isfile("dive.json"):
