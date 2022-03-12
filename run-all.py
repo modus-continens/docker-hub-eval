@@ -11,7 +11,7 @@ import json
 
 root = path.abspath(path.dirname(__file__))
 
-skip_actual_build = False
+skip_actual_build = os.environ.get("SKIP_ACTUAL_BUILD") == "true"
 push_to = os.environ.get("IMAGE_PUSH_TO")
 
 
@@ -137,7 +137,8 @@ codesize_theirs_extra = {
     "node": ["functions.sh"],
     "mysql": [
         "versions.sh",
-        "apply-templates.sh"
+        "apply-templates.sh",
+        "template/Dockerfile.*"
     ],
     "traefik": [
         "updatev1.sh",
