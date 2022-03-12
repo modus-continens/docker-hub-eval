@@ -9,6 +9,14 @@ def system(args):
   print(f"=> {' '.join(args)}")
   subprocess.run(args, check=True, capture_output=False)
 
+SMOKE_TESTS = {
+  "mysql": "mysqld --version",
+  "node": "node -v",
+  "redis": "redis-server --version",
+  "traefik": "traefik version",
+  "ubuntu": "cat /etc/os-release",
+}
+
 repo = "public.ecr.aws/n6d1y9u6/modus-experiment-artifacts"
 def run():
   global tags
@@ -19,6 +27,13 @@ def run():
       system(["docker", "pull", f"{repo}:{tag}"])
       if rm_last is not None:
         system(["docker", "rmi", rm_last])
+      smoke_test_cmd = None
+      for sk, sc in SMOKE_TESTS.items():
+        if sk in tag:
+          smoke_test_cmd = sc
+          break
+      if smoke_test_cmd is not None:
+        system(["docker", "run", "--rm", "--entrypoint", "sh", f"{repo}:{tag}", "-c", smoke_test_cmd])
       if path.isfile("dive.json"):
         os.remove("dive.json") # dive does not truncate file properly
       system(["dive", "--json", "dive.json", f"{repo}:{tag}"])
