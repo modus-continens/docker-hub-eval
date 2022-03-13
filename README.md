@@ -8,7 +8,7 @@ The following commands need to be available:
 * parallel
 * dpkg (can be installed in non-debian distros)
 * jq, sed, awk, gawk
-* modus = 0.1.10 (`cargo install modus --version 0.1.10` or download from https://github.com/modus-continens/modus/releases/download/0.1.10/modus-0.1.10.x86_64-linux-musl)
+* modus = 0.1.11 (`cargo install modus --version 0.1.11` or download from https://github.com/modus-continens/modus/releases/download/0.1.11/modus-0.1.11.x86_64-linux-musl)
 
 The following python packages are needed for running the experiment:
 
@@ -22,7 +22,7 @@ And the following are needed for parsing the result:
 
 Time measurements **does not include** the time it takes to pull base images. These are always cached locally.
 
-The following results are obtained running on a AWS EC2 VM with the following configuration:
+The following results are obtained running on a AWS EC2 VM with the following configuration. Numbers in parentheses are the 95% confidence interval of the population mean.
 
 * c5.2xlarge: 8 vCPUs, 16 GB RAM
 * 8000 IOPS SSD disk
