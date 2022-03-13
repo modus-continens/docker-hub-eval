@@ -18,18 +18,17 @@ impl(version, "alpine3.14", arch) :-
       run("chmod +x /usr/local/bin/traefik"),
       copy("entrypoint.sh", "/")
     )::merge
-  )::set_entrypoint("/entrypoint.sh"),
+  )::set_entrypoint("/entrypoint.sh")
+   ::set_label("org.opencontainers.image.vendor", vendor_label)
+   ::set_label("org.opencontainers.image.url", "https://traefik.io")
+	 ::set_label("org.opencontainers.image.title", "Traefik")
+	 ::set_label("org.opencontainers.image.description", "A modern reverse-proxy")
+	 ::set_label("org.opencontainers.image.version", f"v${version}")
+	 ::set_label("org.opencontainers.image.documentation", "https://docs.traefik.io"),
   (
     is_v1(version), vendor_label = "traefik";
     is_v2(version), vendor_label = "Traefik Labs"
   ).
-  # TODO set labels:
-  # org.opencontainers.image.vendor=vendor_label \
-	# org.opencontainers.image.url="https://traefik.io" \
-	# org.opencontainers.image.title="Traefik" \
-	# org.opencontainers.image.description="A modern reverse-proxy" \
-	# org.opencontainers.image.version="v$VERSION" \
-	# org.opencontainers.image.documentation="https://docs.traefik.io"
 
 traefik(version, "scratch", arch) :-
   (
@@ -37,13 +36,13 @@ traefik(version, "scratch", arch) :-
     traefik(version, "alpine", arch)::copy("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/certs/"),
     traefik(version, "alpine", arch)::copy("/usr/share/zoneinfo", "/usr/share/"),
     traefik(version, "alpine", arch)::copy("/usr/local/bin/traefik", "/")
-  )::set_entrypoint("/traefik").
-   # LABEL org.opencontainers.image.vendor="Traefik Labs" \
-   # 	org.opencontainers.image.url="https://traefik.io" \
-   # 	org.opencontainers.image.title="Traefik" \
-   # 	org.opencontainers.image.description="A modern reverse-proxy" \
-   # 	org.opencontainers.image.version="v$VERSION" \
-   # 	org.opencontainers.image.documentation="https://docs.traefik.io"
+  )::set_entrypoint("/traefik")
+   ::set_label("org.opencontainers.image.vendor", "Traefik Labs")
+   ::set_label("org.opencontainers.image.url", "https://traefik.io")
+	 ::set_label("org.opencontainers.image.title", "Traefik")
+	 ::set_label("org.opencontainers.image.description", "A modern reverse-proxy")
+	 ::set_label("org.opencontainers.image.version", f"v${version}")
+	 ::set_label("org.opencontainers.image.documentation", "https://docs.traefik.io").
 
 
 traefik_version("1.7.34").
