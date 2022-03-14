@@ -107,9 +107,23 @@ system(
 
 
 def code_word_count(fname):
-    with open(fname, "rt") as f:
-        fcontent = f.read()
-        return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
+    # with open(fname, "rt") as f:
+    #     fcontent = f.read()
+    #     return (len(re.split("\W+", fcontent)), fcontent.count("\n"))
+    try:
+        res = subprocess.run([path.join(root, "fair-codesize.sh"), fname], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        e = e.stderr.decode("utf-8", errors="replace")
+        if isatty(sys.stderr):
+            sys.stderr.write(f"\x1b[31m{e}\n\x1b[1mError while running fair-codesize.sh\n\x1b[0m")
+            sys.stderr.flush()
+        else:
+            sys.stderr.write(e)
+        raise ExperimentFailedException
+    res = res.stdout.decode("utf-8", errors="replace")
+    res = [r for r in re.splititer("\s+", res) if r != ""]
+    res = [int(r) for r in res]
+    return (res[7], res[6])
 
 
 # TODO: convert into submodules
