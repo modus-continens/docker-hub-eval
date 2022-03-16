@@ -41,7 +41,8 @@ def run():
       with open("dive.json", "rt") as j:
         obj = json.load(j)
         eff = obj["image"]["efficiencyScore"]
-        w.writerow([tag, eff])
+        size = obj["image"]["sizeBytes"]
+        w.writerow([tag, size, eff])
       rm_last = f"{repo}:{tag}"
 
 # docker image ls --no-trunc --format '{{.Repository}}:{{.Tag}}' | grep ecr.aws

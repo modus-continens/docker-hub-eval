@@ -130,7 +130,7 @@ def code_word_count(fname):
 upstream_git = {
     "ubuntu": ("https://github.com/tianon/docker-brew-ubuntu-core.git", "a11c63cee4049ffbe8acb8ba43c2c58fceb60057"),
     "redis": ("https://github.com/docker-library/redis.git", "4c11f9ce09d45c8b8617d17be181069b637b145f"),
-    "node": ("https://github.com/nodejs/docker-node.git", "652749b5246f304bf5913ce458755ac003b7c3dc"),
+    "node": ("https://github.com/nodejs/docker-node.git", "3b1657458c2deaac996554ccfa76256227dfaac8"),
     "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
     "traefik": ("https://github.com/traefik/traefik-library-image.git", "19b29d4858c12d74647d59214e0a9417646343ca"),
 }
