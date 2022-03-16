@@ -25,8 +25,8 @@ def run():
     rm_last = None
     for tag in tags:
       system(["docker", "pull", f"{repo}:{tag}"])
-      if rm_last is not None:
-        system(["docker", "rmi", rm_last])
+      # if rm_last is not None:
+      #   system(["docker", "rmi", rm_last])
       smoke_test_cmd = None
       if "scratch" not in tag:
         for sk, sc in SMOKE_TESTS.items():
