@@ -123,7 +123,7 @@ def code_word_count(fname):
     res = res.stdout.decode("utf-8", errors="replace")
     res = [r for r in re.splititer("\s+", res) if r != ""]
     res = [int(r) for r in res]
-    return (res[7], res[6])
+    return (res[8], res[7], res[6])
 
 
 # TODO: convert into submodules
@@ -147,16 +147,22 @@ if len(sys.argv) > 1:
 codesize_ours_extra = {
     "mysql": ["upstream.git/versions.sh"]
 }
-codesize_theirs_extra = {
+codesize_theirs_extra_scripts = {
     "node": ["functions.sh"],
     "mysql": [
         "versions.sh",
         "apply-templates.sh",
-        "template/Dockerfile.*"
     ],
     "traefik": [
         "updatev1.sh",
         # not counting updatev2: it is exactly the same as v1, wonder why they made another file...
+    ]
+}
+codesize_theirs_extra_templates = {
+    "mysql": [
+        "template/Dockerfile.*"
+    ],
+    "traefik": [
         "alpine/tmpl*.Dockerfile",
         "scratch/tmpl*.Dockerfile"
     ]
@@ -195,14 +201,15 @@ for app in apps:
     if app in upstream_git:
         repo_dir = path.join(root, app, "upstream.git")
         git_url, commit_sha = upstream_git[app]
-        if not path.isdir(repo_dir):
-            system(f"git clone --single-branch '{git_url}' '{repo_dir}'")
-            chdir(repo_dir)
-        else:
-            chdir(repo_dir)
-            system("git reset --hard && git clean -dffx")
-        system(f"git checkout '{commit_sha}'")
-        chdir(app)
+        if not skip_actual_build:
+            if not path.isdir(repo_dir):
+                system(f"git clone --single-branch '{git_url}' '{repo_dir}'")
+                chdir(repo_dir)
+            else:
+                chdir(repo_dir)
+                system("git reset --hard && git clean -dffx")
+            system(f"git checkout '{commit_sha}'")
+            chdir(app)
 
     app_modus_target[app] = "generated.Modusfile"
     for our_prepare_script in ["generate-versions.sh", "generate-versions.py"]:
@@ -211,9 +218,10 @@ for app in apps:
                 it = "bash"
             elif our_prepare_script.endswith(".py"):
                 it = "python3"
-            app_modus_prepare_time[app] += system(
-                f"{it} ./{our_prepare_script} > generated.Modusfile")
-            system("cat build.Modusfile >> generated.Modusfile")
+            if not skip_actual_build:
+                app_modus_prepare_time[app] += system(
+                    f"{it} ./{our_prepare_script} > generated.Modusfile")
+                system("cat build.Modusfile >> generated.Modusfile")
             break
     else:
         app_modus_target[app] = "Modusfile"
@@ -222,10 +230,11 @@ for app in apps:
         chdir(repo_dir)
         with open("arch", "wt") as arch:
             arch.write("amd64")
-        if path.isfile("../update-upstream.sh"):
-            app_docker_prepare_time[app] += system("../update-upstream.sh")
-        else:
-            app_docker_prepare_time[app] += system("./update.sh")
+        if not skip_actual_build:
+            if path.isfile("../update-upstream.sh"):
+                app_docker_prepare_time[app] += system("../update-upstream.sh")
+            else:
+                app_docker_prepare_time[app] += system("./update.sh")
         if app == "mysql":
             dockerfiles = glob("*.*/Dockerfile.*", recursive=True)
         elif app == "traefik":
@@ -355,12 +364,14 @@ for app, target in app_modus_target.items():
 def print_codesize(app):
     print(f"Code size report for {app}:")
     print("\x1b[1mOurs:\x1b[0m")
+    ours_total_chars = 0
     ours_total_words = 0
     ours_total_lines = 0
     mf_to_count = "build.Modusfile"
     if app_modus_target[app] != "generated.Modusfile":
         mf_to_count = "Modusfile"
-    m_words, m_lines = code_word_count(mf_to_count)
+    m_chars, m_words, m_lines = code_word_count(mf_to_count)
+    ours_total_chars += m_chars
     ours_total_words += m_words
     ours_total_lines += m_lines
     our_extra = []
@@ -368,28 +379,62 @@ def print_codesize(app):
         our_extra = codesize_ours_extra[app]
     for our_prepare_script in chain(["generate-versions.sh", "generate-versions.py"], our_extra):
         if path.isfile(our_prepare_script):
-            u_words, u_lines = code_word_count(our_prepare_script)
+            u_chars, u_words, u_lines = code_word_count(our_prepare_script)
+            ours_total_chars += u_chars
             ours_total_words += u_words
             ours_total_lines += u_lines
-            print(f"  {our_prepare_script}: {u_words} words, {u_lines} lines")
-    print(f"  build.Modusfile: {m_words} words, {m_lines} lines")
-    print(f"  Ours total: {ours_total_words} words, {ours_total_lines} lines")
+            print(f"  {our_prepare_script}: {u_chars} chars, {u_words} words, {u_lines} lines")
+    print(f"  build.Modusfile: {m_chars} chars, {m_words} words, {m_lines} lines")
+    print(f"  Ours total: {ours_total_chars} chars, {ours_total_words} words, {ours_total_lines} lines")
     print(f"\x1b[1mTheirs:\x1b[0m")
+    theirs_chars = 0
     theirs_words = 0
     theirs_lines = 0
-    if app in codesize_theirs_extra:
-        extra = [pp
-                 for p in codesize_theirs_extra[app]
+    theirs_chars_templates = 0
+    theirs_words_templates = 0
+    theirs_lines_templates = 0
+    if app in codesize_theirs_extra_scripts:
+        extra_scripts = [pp
+                 for p in codesize_theirs_extra_scripts[app]
                  for pp in glob(path.join("upstream.git", p), recursive=True)]
     else:
-        extra = []
-    for t in chain(glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"], extra):
+        extra_scripts = []
+    if app in codesize_theirs_extra_templates:
+        extra_templates = [pp
+                 for p in codesize_theirs_extra_templates[app]
+                 for pp in glob(path.join("upstream.git", p), recursive=True)]
+    else:
+        extra_templates = []
+    for t in chain(glob("upstream.git/**/*.template", recursive=True), ["upstream.git/update.sh"], extra_scripts, extra_templates):
         if path.isfile(t):
-            words, lines = code_word_count(t)
+            chars, words, lines = code_word_count(t)
+            theirs_chars += chars
             theirs_words += words
             theirs_lines += lines
-            print(f"  {t}: {words} words, {lines} lines")
-    print(f"  Theirs total: {theirs_words} words, {theirs_lines} lines")
+            print(f"  {t}: {chars} chars, {words} words, {lines} lines")
+    print(f"  Theirs total: {theirs_chars} chars, {theirs_words} words, {theirs_lines} lines")
+    for t in chain(glob("upstream.git/**/*.template", recursive=True), extra_templates):
+        if path.isfile(t):
+            chars, words, lines = code_word_count(t)
+            theirs_chars_templates += chars
+            theirs_words_templates += words
+            theirs_lines_templates += lines
+    print(f"  Theirs templates total: {theirs_chars_templates} chars, {theirs_words_templates} words, {theirs_lines_templates} lines")
+
+    def chg(ours, theirs):
+        if theirs == 0:
+            return "n/a"
+        p = (ours - theirs) / theirs
+        p *= 100
+        if p < 0:
+            return f"{p:.1f}\\%"
+        else:
+            return f"+{p:.1f}\\%"
+
+    print("  all:")
+    print(f"  \\textbf{{{app}}} & {ours_total_lines} ({chg(ours_total_lines, theirs_lines)}) & {ours_total_words} ({chg(ours_total_words, theirs_words)}) & {ours_total_chars} ({chg(ours_total_chars, theirs_chars)}) & {theirs_lines} & {theirs_words} & {theirs_chars}")
+    print("  templates only:")
+    print(f"  \\textbf{{{app}}} & {m_lines} ({chg(m_lines, theirs_lines_templates)}) & {m_words} ({chg(m_words, theirs_words_templates)}) & {m_chars} ({chg(m_chars, theirs_chars_templates)}) & {theirs_lines_templates} & {theirs_words_templates} & {theirs_chars_templates}")
 
 
 for app in apps:
