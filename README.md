@@ -18,6 +18,22 @@ And the following are needed for parsing the result:
 
 * scipy (for confidence interval / sttatistical testing)
 
+## Running the experiment
+
+To run every build one time:
+
+```
+./run-all.py
+```
+
+To run every build an indefinite number of times (round robin):
+
+```
+./run-all-and-log.sh
+```
+
+At any point during this you may print the result up to the current point with `parse_runlog.py`.
+
 ## Results
 
 Time measurements **does not include** the time it takes to pull base images. These are always cached locally.
