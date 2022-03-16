@@ -361,6 +361,8 @@ for app, target in app_modus_target.items():
         sys.stderr.flush()
         exit(1)
 
+tex_sources = ["", ""]
+
 def print_codesize(app):
     print(f"Code size report for {app}:")
     print("\x1b[1mOurs:\x1b[0m")
@@ -431,10 +433,8 @@ def print_codesize(app):
         else:
             return f"+{p:.1f}\\%"
 
-    print("  all:")
-    print(f"  \\textbf{{{app}}} & {ours_total_lines} ({chg(ours_total_lines, theirs_lines)}) & {ours_total_words} ({chg(ours_total_words, theirs_words)}) & {ours_total_chars} ({chg(ours_total_chars, theirs_chars)}) & {theirs_lines} & {theirs_words} & {theirs_chars}")
-    print("  templates only:")
-    print(f"  \\textbf{{{app}}} & {m_lines} ({chg(m_lines, theirs_lines_templates)}) & {m_words} ({chg(m_words, theirs_words_templates)}) & {m_chars} ({chg(m_chars, theirs_chars_templates)}) & {theirs_lines_templates} & {theirs_words_templates} & {theirs_chars_templates}")
+    tex_sources[0] += f"  \\textbf{{{app}}} & {theirs_lines} & {theirs_words} & {theirs_chars} & {ours_total_lines} & {chg(ours_total_lines, theirs_lines)} & {ours_total_words} & {chg(ours_total_words, theirs_words)} & {ours_total_chars} & {chg(ours_total_chars, theirs_chars)} \\\\\n"
+    tex_sources[1] += f"  \\textbf{{{app}}} & {theirs_lines_templates} & {theirs_words_templates} & {theirs_chars_templates} & {m_lines} & {chg(m_lines, theirs_lines_templates)} & {m_words} & {chg(m_words, theirs_words_templates)} & {m_chars} & {chg(m_chars, theirs_chars_templates)} \\\\\n"
 
 
 for app in apps:
@@ -445,6 +445,10 @@ for app in apps:
     print("")
     print("====================")
     print("")
+
+print(tex_sources[0])
+print("")
+print(tex_sources[1])
 
 print(">>>>")
 print(json.dumps({
