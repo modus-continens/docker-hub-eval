@@ -27,7 +27,11 @@ redis(version, variant) :-
             apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false;
             chmod +x /usr/local/bin/gosu;
             gosu --version;
-            gosu nobody true"),
+            gosu nobody true")
+    )::set_env("REDIS_VERSION", version)
+     ::set_env("REDIS_DOWNLOAD_URL", download_url)
+     ::set_env("REDIS_DOWNLOAD_SHA", sha),
+    (
       config(version, variant, make_target, build_tls),
       apt_dep(variant, build_tls, libc6, libssl),
       run(f"set -eux;
@@ -44,11 +48,7 @@ redis(version, variant) :-
             ${libssl} \
             make \
           ;
-          rm -rf /var/lib/apt/lists/*")
-    )::set_env("REDIS_VERSION", version)
-     ::set_env("REDIS_DOWNLOAD_URL", download_url)
-     ::set_env("REDIS_DOWNLOAD_SHA", sha),
-    (
+          rm -rf /var/lib/apt/lists/*"),
       extract_redis(sha_type),
       protected_mode_sed(version),
       patch_and_build(make_target, build_tls),
