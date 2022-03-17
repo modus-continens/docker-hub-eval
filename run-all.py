@@ -438,8 +438,8 @@ def print_codesize(app):
         else:
             return f"+{p:.1f}\\%"
 
-    tex_sources[0] += f"  \\textbf{{{app}}} & {theirs_lines} & {theirs_words} & {theirs_chars} & {ours_total_lines} & {chg(ours_total_lines, theirs_lines)} & {ours_total_words} & {chg(ours_total_words, theirs_words)} & {ours_total_chars} & {chg(ours_total_chars, theirs_chars)} \\\\\n"
-    tex_sources[1] += f"  \\textbf{{{app}}} & {theirs_lines_templates} & {theirs_words_templates} & {theirs_chars_templates} & {m_lines} & {chg(m_lines, theirs_lines_templates)} & {m_words} & {chg(m_words, theirs_words_templates)} & {m_chars} & {chg(m_chars, theirs_chars_templates)} \\\\\n"
+    tex_sources[0] += f"  \\textbf{{{app}}} & {theirs_lines} & {theirs_words} & {theirs_chars} & {ours_total_lines} ({chg(ours_total_lines, theirs_lines)}) & {ours_total_words} ({chg(ours_total_words, theirs_words)}) & {ours_total_chars} ({chg(ours_total_chars, theirs_chars)}) \\\\\n"
+    tex_sources[1] += f"  \\textbf{{{app}}} & {theirs_lines_templates} & {theirs_words_templates} & {theirs_chars_templates} & {m_lines} ({chg(m_lines, theirs_lines_templates)}) & {m_words} ({chg(m_words, theirs_words_templates)}) & {m_chars} ({chg(m_chars, theirs_chars_templates)}) \\\\\n"
 
 
 for app in apps:
