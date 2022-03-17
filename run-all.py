@@ -133,6 +133,7 @@ upstream_git = {
     "node": ("https://github.com/nodejs/docker-node.git", "3b1657458c2deaac996554ccfa76256227dfaac8"),
     "mysql": ("https://github.com/docker-library/mysql.git", "37981f652a98b8fc26f487be9eda167de4689d84"),
     "traefik": ("https://github.com/traefik/traefik-library-image.git", "19b29d4858c12d74647d59214e0a9417646343ca"),
+    "nginx": ("https://github.com/nginxinc/docker-nginx.git", "92973a30900b2ed881d208d10cadade34bbbab33"),
 }
 apps = list(sorted(upstream_git.keys()))
 if len(sys.argv) > 1:
@@ -172,7 +173,8 @@ app_query = {
     "redis": "redis(version, variant)",
     "node": "node(version, variant, arch, yarn_version)",
     "mysql": "mysql(major_version, dist, variant, \"amd64\")",
-    "traefik": "traefik(version, variant, \"amd64\")"
+    "traefik": "traefik(version, variant, \"amd64\")",
+    "nginx": "nginx(branch, dist, include_perl)",
 }
 
 
@@ -246,6 +248,9 @@ for app in apps:
             dockerfiles = glob("**/*Dockerfile", recursive=True)
         targets = []
         for d in dockerfiles:
+            if app == "nginx" and "modules" in d:
+                # Modules are a separate repository - we don't build them here.
+                continue
             dir = path.relpath(path.abspath(
                 path.dirname(d)), path.join(root, app))
             targets.append((dir, path.basename(d)))

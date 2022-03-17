@@ -1,0 +1,263 @@
+#              branch      nginx_version  njs_version
+nginx_versions("mainline", "1.21.6"     , "0.7.2"    ).
+nginx_versions("stable"  , "1.20.2"     , "0.7.0"    ).
+
+dist("mainline", "debian", "bullseye").
+dist("stable", "debian", "bullseye").
+dist("mainline", "alpine", "3.15").
+dist("stable", "alpine", "3.14").
+
+# When we bump njs version in a stable release we don't move the tag in the
+# mercurial repo.  This setting allows us to specify a revision to check out
+# when building alpine packages on architectures not supported by nginx.org
+# Remember to update pkgosschecksum when changing this.
+rev("mainline", nginx_version, pkg_ver, revver) :- revver = f"${nginx_version}-${pkg_ver}".
+rev("stable", nginx_version, pkg_ver, revver) :- revver = f"${nginx_version}-${pkg_ver}".
+# rev("stable", nginx_version, pkg_ver, "500").
+
+# Holds SHA512 checksum for the pkg-oss tarball produced by source code
+# revision/tag in the previous block
+# Used in alpine builds for architectures not packaged by nginx.org
+pkgoss_checksum("mainline", "29ec1c635da36b7727953544e1a20e9d75bd9d2050e063b9f81f88ca07bb7ea0b65cef46d0f3cb7134b38ce9b94ecada631619f233231845a3d8a16b6ad0db82").
+pkgoss_checksum("stable", "af6e7eb25594dffe2903358f7a2c5c956f5b67b8df3f4e8237c30b63e50ce28e6eada3ed453687409beef8f3afa8f551cb20df2f06bd5e235eb66df212ece2ed").
+
+pkgver(branch, "debian", dist_version, pkgver) :- pkgver = f"1~${dist_version}".
+pkgver(branch, "alpine", dist_version, pkgver) :- pkgver = "1".
+
+package_str("debian", nginx_version, pkgver, p, v) :-
+  v = f"${p}=${nginx_version}-${pkgver}".
+njs_package_str("debian", nginx_version, njs_version, pkgver, p, v) :-
+  v = f"${p}=${nginx_version}+${njs_version}-${pkgver}".
+package_str("alpine", nginx_version, pkgver, p, v) :-
+  v = f"${p}=${nginx_version}-r${pkgver}".
+njs_package_str("alpine", nginx_version, njs_version, pkgver, p, v) :-
+  v = f"${p}=${nginx_version}.${njs_version}-r${pkgver}".
+
+packages(nginx_version, njs_version, branch, dist, dist_version, include_perl, res_str) :-
+  pkgver(branch, dist, dist_version, pv),
+  d=dist, nv=nginx_version,
+  # nginx nginx-module-xslt nginx-module-geoip nginx-module-image-filter
+  package_str(d, nv, pv, "nginx", v1),
+  package_str(d, nv, pv, "nginx-module-xslt", v2),
+  package_str(d, nv, pv, "nginx-module-geoip", v3),
+  package_str(d, nv, pv, "nginx-module-image-filter", v4),
+  (
+    include_perl="true",
+    package_str(d, nv, pv, "nginx-module-perl", v5)
+    ;
+    include_perl="false",
+    v5=""
+  ),
+  njs_package_str(d, nv, njs_version, pv, "nginx-module-njs", v6),
+  res_str = f"${v1} ${v2} ${v3} ${v4} ${v5} ${v6}".
+
+
+package_repo(dist, "mainline", repo) :-
+  repo = f"https://nginx.org/packages/mainline/${dist}/".
+package_repo(dist, "stable", repo) :-
+  repo = f"https://nginx.org/packages/${dist}/".
+
+nginx(branch, dist, include_perl) :-
+  dist(branch, dist, dist_version),
+  nginx_versions(branch, nginx_version, njs_version),
+  packages(nginx_version, njs_version, branch, dist, dist_version, include_perl, packages),
+  package_repo(dist, branch, package_repo),
+  pkgver(branch, dist, dist_version, pkg_ver),
+  rev(branch, nginx_version, pkg_ver, revision),
+  pkgoss_checksum(branch, pkgosschecksum),
+
+  (
+    from(f"${dist}:${dist_version}")
+      ::set_label("maintainer", "NGINX Docker Maintainers <docker-maint@nginx.com>"),
+    (
+      (
+        dist = "debian",
+        run(f"set -x
+          # create nginx user/group first, to be consistent throughout docker variants
+            addgroup --system --gid 101 nginx \
+            && adduser --system --disabled-login --ingroup nginx --no-create-home --home /nonexistent --gecos \"nginx user\" --shell /bin/false --uid 101 nginx \
+            && apt-get update \
+            && apt-get install --no-install-recommends --no-install-suggests -y gnupg1 ca-certificates \
+            && \
+            NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
+            found=''; \
+            for server in \
+                hkp://keyserver.ubuntu.com:80 \
+                pgp.mit.edu \
+            ; do \
+                echo \"Fetching GPG key $NGINX_GPGKEY from $server\"; \
+                apt-key adv --keyserver \"$server\" --keyserver-options timeout=10 --recv-keys \"$NGINX_GPGKEY\" && found=yes && break; \
+            done; \
+            test -z \"$found\" && echo >&2 \"error: failed to fetch GPG key $NGINX_GPGKEY\" && exit 1; \
+            apt-get remove --purge --auto-remove -y gnupg1 && rm -rf /var/lib/apt/lists/* \
+            && dpkgArch=\"$(dpkg --print-architecture)\" \
+            && nginxPackages=\"${packages}\" \
+            && case \"$dpkgArch\" in
+                amd64|arm64)
+                  # arches officialy built by upstream
+                  echo \"deb ${package_repo} ${dist_version} nginx\" >> /etc/apt/sources.list.d/nginx.list \
+                  && apt-get update \
+                  ;;
+                *)
+                  set -e
+                  # we're on an architecture upstream doesn't officially build for
+                  # let's build binaries from the published source packages
+                  echo \"deb-src ${package_repo} ${dist_version} nginx\" >> /etc/apt/sources.list.d/nginx.list
+                  # new directory for storing sources and .deb files
+                  tempDir=\"$(mktemp -d)\"
+                  chmod 777 \"$tempDir\"
+                  # (777 to ensure APT's '_apt' user can access it too)
+                  # save list of currently-installed packages so build dependencies can be cleanly removed later
+                  savedAptMark=\"$(apt-mark showmanual)\"
+
+                  # build .deb files from upstream's source packages (which are verified by apt-get)
+                  apt-get update
+                  apt-get build-dep -y $nginxPackages
+                  (
+                    cd \"$tempDir\"
+                    DEB_BUILD_OPTIONS=\"nocheck parallel=$(nproc)\" \
+                        apt-get source --compile $nginxPackages
+                  )
+                  # we don't remove APT lists here because they get re-downloaded and removed later
+
+                  # reset apt-mark's 'manual' list so that 'purge --auto-remove' will remove all build dependencies
+                  # (which is done after we install the built packages so we don't have to redownload any overlapping dependencies)
+                  apt-mark showmanual | xargs apt-mark auto > /dev/null
+                  { [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark; }
+
+                  # create a temporary local APT repo to install from (so that dependency resolution can be handled by APT, as it should be)
+                  ls -lAFh \"$tempDir\" \
+                  && ( cd \"$tempDir\" && dpkg-scanpackages . > Packages ) \
+                  && grep '^Package: ' \"$tempDir/Packages\" \
+                  && echo \"deb [ trusted=yes ] file://$tempDir ./\" > /etc/apt/sources.list.d/temp.list
+                  # work around the following APT issue by using 'Acquire::GzipIndexes=false' (overriding '/etc/apt/apt.conf.d/docker-gzip-indexes')
+                  #   Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
+                  #   ...
+                  #   E: Failed to fetch store:/var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages  Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
+                  apt-get -o Acquire::GzipIndexes=false update
+                  ;;
+            esac
+
+            set -e
+            apt-get install --no-install-recommends --no-install-suggests -y \
+                                $nginxPackages \
+                                gettext-base \
+                                curl \
+            && apt-get remove --purge --auto-remove -y && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx.list
+
+            # if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
+            if [ -n \"$tempDir\" ]; then \
+                apt-get purge -y --auto-remove \
+                && rm -rf \"$tempDir\" /etc/apt/sources.list.d/temp.list; \
+            fi
+        ")
+        ;
+        dist = "alpine",
+        run(f"set -xe
+            addgroup -g 101 -S nginx
+            adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+            apkArch=\"$(cat /etc/apk/arch)\"
+            nginxPackages=\"${packages}\"
+            # install prerequisites for public key and pkg-oss checks
+            apk add --no-cache --virtual .checksum-deps \
+             openssl
+            case \"$apkArch\" in
+              x86_64|aarch64) \
+                # arches officially built by upstream
+                KEY_SHA512=\"e7fa8303923d9b95db37a77ad46c68fd4755ff935d0a534d26eba83de193c76166c68bfe7f65471bf8881004ef4aa6df3e34689c305662750c0172fca5d8552a *stdin\" \
+                && wget -O /tmp/nginx_signing.rsa.pub https://nginx.org/keys/nginx_signing.rsa.pub \
+                && if [ \"$(openssl rsa -pubin -in /tmp/nginx_signing.rsa.pub -text -noout | openssl sha512 -r)\" = \"$KEY_SHA512\" ]; then \
+                    echo \"key verification succeeded!\"; \
+                    mv /tmp/nginx_signing.rsa.pub /etc/apk/keys/; \
+                else \
+                    echo \"key verification failed!\"; \
+                    exit 1; \
+                fi \
+                && apk add -X \"${package_repo}v$(egrep -o '^[0-9]+\\.[0-9]+' /etc/alpine-release)/main\" --no-cache $nginxPackages
+                ;;
+              *)
+                # we're on an architecture upstream doesn't officially build for
+                # let's build binaries from the published packaging sources
+                set -x \
+                && tempDir=\"$(mktemp -d)\" \
+                && chown nobody:nobody $tempDir \
+                && apk add --no-cache --virtual .build-deps \
+                    gcc \
+                    libc-dev \
+                    make \
+                    openssl-dev \
+                    pcre2-dev \
+                    zlib-dev \
+                    linux-headers \
+                    libxslt-dev \
+                    gd-dev \
+                    geoip-dev \
+                    perl-dev \
+                    libedit-dev \
+                    bash \
+                    alpine-sdk \
+                    findutils \
+                && su nobody -s /bin/sh -c \" \
+                    export HOME=\${tempDir} \
+                    && cd \${tempDir} \
+                    && curl -f -O https://hg.nginx.org/pkg-oss/archive/${revision}.tar.gz \
+                    && PKGOSSCHECKSUM=\\\"${pkgosschecksum} *${revision}.tar.gz\\\" \
+                    && if [ \\\"\$(openssl sha512 -r ${revision}.tar.gz)\\\" = \\\"\$PKGOSSCHECKSUM\\\" ]; then \
+                        echo \\\"pkg-oss tarball checksum verification succeeded!\\\"; \
+                    else \
+                        echo \\\"pkg-oss tarball checksum verification failed!\\\"; \
+                        exit 1; \
+                    fi \
+                    && tar xzvf ${revision}.tar.gz \
+                    && cd pkg-oss-${revision} \
+                    && cd alpine \
+                    && make all \
+                    && apk index -o \${tempDir}/packages/alpine/\${apkArch}/APKINDEX.tar.gz \${tempDir}/packages/alpine/\${apkArch}/*.apk \
+                    && abuild-sign -k \${tempDir}/.abuild/abuild-key.rsa \${tempDir}/packages/alpine/\${apkArch}/APKINDEX.tar.gz \
+                    \" \
+                && cp \${tempDir}/.abuild/abuild-key.rsa.pub /etc/apk/keys/ \
+                && apk del .build-deps \
+                && apk add -X \${tempDir}/packages/alpine/ --no-cache $nginxPackages \
+                ;;
+            esac
+            # remove checksum deps
+            apk del .checksum-deps
+            # if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
+            if [ -n \"$tempDir\" ]; then rm -rf \"$tempDir\"; fi
+            if [ -n \"/etc/apk/keys/abuild-key.rsa.pub\" ]; then rm -f /etc/apk/keys/abuild-key.rsa.pub; fi
+            if [ -n \"/etc/apk/keys/nginx_signing.rsa.pub\" ]; then rm -f /etc/apk/keys/nginx_signing.rsa.pub; fi
+            # Bring in gettext so we can get `envsubst`, then throw
+            # the rest away. To do this, we need to install `gettext`
+            # then move `envsubst` out of the way so `gettext` can
+            # be deleted completely, then move `envsubst` back.
+            apk add --no-cache --virtual .gettext gettext
+            mv /usr/bin/envsubst /tmp/
+
+            runDeps=\"$( \
+              scanelf --needed --nobanner /tmp/envsubst \
+                  | awk '{ gsub(/,/, \"\\nso:\", $2); print \"so:\" $2 }' \
+                  | sort -u \
+                  | xargs -r apk info --installed \
+                  | sort -u \
+            )\" \
+            && apk add --no-cache $runDeps \
+            && apk del .gettext \
+            && mv /tmp/envsubst /usr/local/bin/
+            # Bring in tzdata so users could set the timezones through the environment
+            # variables
+            apk add --no-cache tzdata
+            # Bring in curl and ca-certificates to make registering on DNS SD easier
+            apk add --no-cache curl ca-certificates
+          ")
+      ),
+      # forward request and error logs to docker log collector
+      run("ln -sf /dev/stdout /var/log/nginx/access.log \
+        && ln -sf /dev/stderr /var/log/nginx/error.log"),
+      # create a docker-entrypoint.d directory
+      run("mkdir /docker-entrypoint.d"),
+      copy("docker-entrypoint.sh", "/"),
+      copy("upstream.git/entrypoint/10-listen-on-ipv6-by-default.sh", "/docker-entrypoint.d"),
+      copy("upstream.git/entrypoint/20-envsubst-on-templates.sh", "/docker-entrypoint.d"),
+      copy("upstream.git/entrypoint/30-tune-worker-processes.sh", "/docker-entrypoint.d")
+    )::merge
+  )::set_entrypoint("/docker-entrypoint.sh").
