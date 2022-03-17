@@ -187,7 +187,7 @@ patch_and_build(make_target, build_tls) :-
   run(f"make -C /usr/src/redis -j \"$(nproc)\" ${make_target} && \
         make -C /usr/src/redis install")::in_env("BUILD_TLS", build_tls),
   # TODO https://github.com/redis/redis/pull/3494 (deduplicate "redis-server" copies)
-  run("set -enx;
+  run("set -eux;
         serverMd5=\"$(md5sum /usr/local/bin/redis-server | cut -d' ' -f1)\"; export serverMd5;
         find /usr/local/bin/redis* -maxdepth 0 \
           -type f -not -name redis-server \
@@ -195,6 +195,5 @@ patch_and_build(make_target, build_tls) :-
             md5=\"$(md5sum \"$1\" | cut -d\" \" -f1)\"; \
             test \"$md5\" = \"$serverMd5\"; \
           ' -- '{}' ';' \
-          -exec ln -svfT 'redis-server' '{}' ';';
-
-        rm -r /usr/src/redis;").
+          -exec ln -svfT 'redis-server' '{}' ';';"),
+  run("rm -r /usr/src/redis;").
