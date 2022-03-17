@@ -34,6 +34,10 @@ To run every build an indefinite number of times (round robin):
 
 At any point during this you may print the result up to the current point with `parse_runlog.py`.
 
+## Note on NodeJS
+
+Occasionally the upstream update script for NodeJS can stop working, causing the experiment to fail. This is because their build server advertises a new version before actually finish building it and having the artifacts available. This is not something under our control, but if this happens the NodeJS run can always be skipped by lefting it out of the retry command line printed by `run-all.py`.
+
 ## Results
 
 Time measurements **does not include** the time it takes to pull base images. These are always cached locally.
