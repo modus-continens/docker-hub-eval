@@ -67,7 +67,11 @@ nginx(branch, dist, include_perl) :-
   pkgoss_checksum(branch, pkgosschecksum),
 
   (
-    from(f"${dist}:${dist_version}")
+    (
+      dist = "debian", slim = "-slim";
+      dist != "debian", slim = ""
+    ),
+    from(f"${dist}:${dist_version}${slim}")
       ::set_label("maintainer", "NGINX Docker Maintainers <docker-maint@nginx.com>"),
     (
       (
