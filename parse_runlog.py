@@ -11,7 +11,7 @@ from scipy.stats import norm, sem
 dicts = {}
 apps = set()
 
-for file in os.listdir("runlog"):
+for file in sorted(os.listdir("runlog")):
     with open(path.join("runlog", file), "rt") as f:
         data = f.read()
         marker = ">>>>\n"
