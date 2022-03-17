@@ -45,9 +45,44 @@ for file in sorted(os.listdir("runlog")):
                 else:
                     do_item(n)
 
-colorder = ["app_modus_prepare_time", "app_modus_time", "app_profiling_exporting_total", "app_docker_prepare_time", "app_docker_times"]
-print("| app | Update version list (Modus) | Modus build total time | Modus Exporting time | upstream ./update.sh | upstream Docker build | n |")
-print("| --- | --- | --- | --- | --- | --- | --- |")
+def derived(name, fn):
+    dicts[name] = {}
+    for app in apps:
+        nvalues = {n: dicts[n][app] for n in ["app_modus_prepare_time", "app_modus_time", "app_docker_prepare_time", "app_docker_times"]}
+        arr = [0] * len(nvalues["app_modus_time"])
+        for i in range(0, len(arr)):
+            arr[i] = fn({n: nvalues[n][i] for n in nvalues})
+        dicts[name][app] = arr
+
+derived("app_modus_total_time", lambda d: d["app_modus_prepare_time"] + d["app_modus_time"])
+derived("app_docker_total_time", lambda d: d["app_docker_prepare_time"] + d["app_docker_times"])
+
+# colorder = ["app_modus_prepare_time", "app_modus_time", "app_profiling_resolving_total", "app_profiling_exporting_total", "app_docker_prepare_time", "app_docker_times"]
+# print("| app | Update version list (Modus) | Modus build total time | Modus Resolving time | Modus Exporting time | upstream ./update.sh | upstream Docker build | n |")
+# print("| --- | --- | --- | --- | --- | --- | --- | --- |")
+# for app in sorted(apps):
+#     cols = {}
+#     n = -1
+#     for name in dicts.keys():
+#         if app not in dicts[name] or len(dicts[name][app]) == 0:
+#             continue
+#         app_vals = dicts[name][app][:64]
+#         if n == -1:
+#             n = len(app_vals)
+#         elif n != len(app_vals):
+#             print(f"ERROR: {app}: len mismatch")
+#         m = mean(app_vals)
+#         s = sem(app_vals)
+#         if s > 1e-6:
+#             left, right = norm.interval(0.95, loc=m, scale=s)
+#             if left < 0:
+#                 left = 0
+#             cols[name] = f"{m:.2f} ({left:.2f} - {right:.2f})"
+#         else:
+#             cols[name] = f"{m:.2f}"
+#     print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n} |")
+
+colorder = ["app_docker_times", "app_modus_time"]
 for app in sorted(apps):
     cols = {}
     n = -1
@@ -65,7 +100,7 @@ for app in sorted(apps):
             left, right = norm.interval(0.95, loc=m, scale=s)
             if left < 0:
                 left = 0
-            cols[name] = f"{m:.2f} ({left:.2f} - {right:.2f})"
+            cols[name] = f"{m:.2f} & {left:.2f}--{right:.2f}"
         else:
-            cols[name] = f"{m:.2f}"
-    print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n} |")
+            cols[name] = f"{m:.2f} & {m:.2f}--{m:.2f}"
+    print(f"\\textbf{{{app}}} & {' & '.join((cols[n] if n in cols else '- & -') for n in colorder)} \\\\")
