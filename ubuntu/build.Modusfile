@@ -1,10 +1,14 @@
 ubuntu(version) :- ubuntu(version, "amd64").
 
+no_oci("trusty").
+no_oci("xenial").
+has_oci(v) :- !no_oci(v).
+
 ubuntu(version, arch) :-
   ubuntu_version(version, arch),
   has_oci(version),
-  thisTarBase=f"ubuntu-${version}-oci-${arch}",
-  thisTar=f"${thisTarBase}-root.tar.gz",
+  thisTarBase=f"ubuntu-${version}-oci-${arch}-root",
+  thisTar=f"${thisTarBase}.tar.gz",
   baseUrl=f"https://partner-images.canonical.com/oci/${version}/current",
   (
     from("scratch"),
@@ -76,7 +80,3 @@ download_tar(thisTarBase, thisTar, baseUrl) :-
   run(f"wget -qN ${baseUrl}/{SHA256SUMS{,.gpg},${thisTarBase}.manifest,'unpacked/build-info.txt'} && \
 				wget -N --progress=dot:giga ${baseUrl}/${thisTar}"),
   run(f"mkdir ${thisTarBase} && tar -xzf ${thisTar} -C ${thisTarBase}").
-
-no_oci("trusty").
-no_oci("xenial").
-has_oci(v) :- !no_oci(v).
