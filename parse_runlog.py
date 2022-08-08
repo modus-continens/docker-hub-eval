@@ -57,7 +57,7 @@ def derived(name, fn):
 derived("app_modus_total_time", lambda d: d["app_modus_prepare_time"] + d["app_modus_time"])
 derived("app_docker_total_time", lambda d: d["app_docker_prepare_time"] + d["app_docker_times"])
 
-derived("app_modus_total_time_no_export", lambda d: d["app_modus_total_time"] - d["app_profiling_exporting_total"])
+derived("app_modus_total_time_no_export", lambda d: d["app_modus_prepare_time"] + d["app_modus_time"] - d["app_profiling_exporting_total"])
 derived("app_modus_time_no_export", lambda d: d["app_modus_time"] - d["app_profiling_exporting_total"])
 
 # colorder = ["app_modus_prepare_time", "app_modus_time", "app_profiling_resolving_total", "app_profiling_exporting_total", "app_docker_prepare_time", "app_docker_times"]
