@@ -57,6 +57,9 @@ def derived(name, fn):
 derived("app_modus_total_time", lambda d: d["app_modus_prepare_time"] + d["app_modus_time"])
 derived("app_docker_total_time", lambda d: d["app_docker_prepare_time"] + d["app_docker_times"])
 
+derived("app_modus_total_time_no_export", lambda d: d["app_modus_total_time"] - d["app_profiling_exporting_total"])
+derived("app_modus_time_no_export", lambda d: d["app_modus_time"] - d["app_profiling_exporting_total"])
+
 # colorder = ["app_modus_prepare_time", "app_modus_time", "app_profiling_resolving_total", "app_profiling_exporting_total", "app_docker_prepare_time", "app_docker_times"]
 # print("| app | Update version list (Modus) | Modus build total time | Modus Resolving time | Modus Exporting time | upstream ./update.sh | upstream Docker build | n |")
 # print("| --- | --- | --- | --- | --- | --- | --- | --- |")
@@ -82,7 +85,7 @@ derived("app_docker_total_time", lambda d: d["app_docker_prepare_time"] + d["app
 #             cols[name] = f"{m:.2f}"
 #     print(f"| {app} | {' | '.join((cols[n] if n in cols else '-') for n in colorder)} | {n} |")
 
-colorder = ["app_docker_times", "app_modus_time"]
+colorder = ["app_docker_times", "app_modus_time_no_export"]
 for app in sorted(apps):
     cols = {}
     n = -1
