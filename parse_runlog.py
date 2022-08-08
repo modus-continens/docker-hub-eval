@@ -48,7 +48,7 @@ for file in sorted(os.listdir("runlog")):
 def derived(name, fn):
     dicts[name] = {}
     for app in apps:
-        nvalues = {n: dicts[n][app] for n in ["app_modus_prepare_time", "app_modus_time", "app_docker_prepare_time", "app_docker_times"]}
+        nvalues = {n: dicts[n][app] for n in ["app_modus_prepare_time", "app_modus_time", "app_docker_prepare_time", "app_docker_times", "app_profiling_exporting_total"]}
         arr = [0] * len(nvalues["app_modus_time"])
         for i in range(0, len(arr)):
             arr[i] = fn({n: nvalues[n][i] for n in nvalues})
